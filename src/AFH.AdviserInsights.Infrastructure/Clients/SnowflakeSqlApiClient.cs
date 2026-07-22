@@ -7,21 +7,18 @@ namespace AFH.AdviserInsights.Infrastructure.Clients;
 
 public sealed class SnowflakeSqlApiClient(
     HttpClient http,
-    IOptions<AdviserInsightsOptions> options) : ISnowflakeSqlClient
+    IOptions<AdviserInsightsOptions> options,
+    TimeProvider timeProvider) : ISnowflakeSqlClient
 {
     public async Task<IReadOnlyList<IReadOnlyDictionary<string, object?>>> QueryAsync(
         string statement,
         CancellationToken cancellationToken)
     {
-        var snowflake = options.Value.Snowflake;
-        if (string.IsNullOrWhiteSpace(snowflake.AccountUrl))
-            throw new InvalidOperationException("AdviserInsights:Snowflake:AccountUrl is required.");
-        if (string.IsNullOrWhiteSpace(snowflake.ApiToken))
-            throw new InvalidOperationException("AdviserInsights:Snowflake:ApiToken is required.");
+        var snowflake = SnowflakeConnectionSettings.FromOptions(options.Value.Snowflake);
 
-        var endpoint = new Uri(new Uri(snowflake.AccountUrl.TrimEnd('/') + "/"), "api/v2/statements");
+        var endpoint = new Uri(snowflake.AccountUrl, "api/v2/statements");
         using var request = new HttpRequestMessage(HttpMethod.Post, endpoint);
-        request.Headers.TryAddWithoutValidation("Authorization", $"Bearer {snowflake.ApiToken}");
+        AddAuthorizationHeader(request, snowflake);
         request.Content = JsonContent.Create(new SnowflakeStatementRequest(
             statement,
             snowflake.Timeout.TotalSeconds,
@@ -39,6 +36,22 @@ public sealed class SnowflakeSqlApiClient(
 
         using var document = JsonDocument.Parse(body);
         return MapRows(document.RootElement);
+    }
+
+    private void AddAuthorizationHeader(HttpRequestMessage request, SnowflakeConnectionSettings settings)
+    {
+        if (settings.Authenticator.Equals("snowflake_jwt", StringComparison.OrdinalIgnoreCase))
+        {
+            var jwt = SnowflakeJwtTokenFactory.CreateToken(settings, timeProvider);
+            request.Headers.TryAddWithoutValidation("Authorization", $"Bearer {jwt}");
+            request.Headers.TryAddWithoutValidation("X-Snowflake-Authorization-Token-Type", "KEYPAIR_JWT");
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(settings.ApiToken))
+            throw new InvalidOperationException("AdviserInsights:Snowflake:ApiToken is required unless Authenticator is snowflake_jwt.");
+
+        request.Headers.TryAddWithoutValidation("Authorization", $"Bearer {settings.ApiToken}");
     }
 
     private static IReadOnlyList<IReadOnlyDictionary<string, object?>> MapRows(JsonElement root)

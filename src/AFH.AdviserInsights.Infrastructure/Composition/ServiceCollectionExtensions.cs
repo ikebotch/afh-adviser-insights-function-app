@@ -13,6 +13,7 @@ public static class ServiceCollectionExtensions
         IConfiguration configuration)
     {
         services.Configure<AdviserInsightsOptions>(configuration.GetSection(AdviserInsightsOptions.SectionName));
+        services.AddSingleton(TimeProvider.System);
         services.AddHttpClient<IIdentityClient, IdentityClient>();
         services.AddHttpClient<ISnowflakeSqlClient, SnowflakeSqlApiClient>();
         services.AddScoped<IAdviserInsightsRepository, SnowflakeAdviserInsightsRepository>();

@@ -18,9 +18,23 @@ public sealed class DownstreamIdentityOptions
 
 public sealed class SnowflakeOptions
 {
+    public string? ConnectionString { get; set; }
+
+    public string? Account { get; set; }
+
+    public string? Host { get; set; }
+
     public string? AccountUrl { get; set; }
 
     public string? ApiToken { get; set; }
+
+    public string? Authenticator { get; set; }
+
+    public string? User { get; set; }
+
+    public string? PrivateKey { get; set; }
+
+    public string? PrivateKeyFile { get; set; }
 
     public string Warehouse { get; set; } = "DEFAULT";
 

@@ -66,13 +66,26 @@ Configure with:
 
 ```bash
 AdviserInsights__Identity__BaseUrl=https://<identity-service>.azurewebsites.net
-AdviserInsights__Snowflake__AccountUrl=https://<account>.snowflakecomputing.com
-AdviserInsights__Snowflake__ApiToken=<token>
+AdviserInsights__Snowflake__ConnectionString=account=<account>;host=<account>.<region>.azure.snowflakecomputing.com;authenticator=snowflake_jwt;user=<user>;private_key=<private-key-pem-or-base64>
 AdviserInsights__Snowflake__Warehouse=<warehouse>
 AdviserInsights__Snowflake__Database=DIM_DB_DEV
 AdviserInsights__Snowflake__Schema=AFH
 AdviserInsights__Snowflake__Role=<role>
 ```
+
+For key-pair authentication, the service generates the Snowflake JWT and calls the Snowflake SQL API with `X-Snowflake-Authorization-Token-Type: KEYPAIR_JWT`.
+
+You can also configure the same values separately:
+
+```bash
+AdviserInsights__Snowflake__Account=<account>
+AdviserInsights__Snowflake__Host=<account>.<region>.azure.snowflakecomputing.com
+AdviserInsights__Snowflake__Authenticator=snowflake_jwt
+AdviserInsights__Snowflake__User=<user>
+AdviserInsights__Snowflake__PrivateKey=<private-key-pem-or-base64>
+```
+
+Use `AdviserInsights__Snowflake__PrivateKeyFile` for local development if you do not want the private key inline. In Azure, prefer Key Vault references for the private key value.
 
 ## Phase 1 Notes
 
