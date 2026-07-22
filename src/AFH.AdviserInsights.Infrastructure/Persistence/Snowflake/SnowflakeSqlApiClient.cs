@@ -1,4 +1,5 @@
 using System.Net.Http.Json;
+using System.Net.Mime;
 using System.Text.Json;
 using AFH.AdviserInsights.Infrastructure.Options;
 using Microsoft.Extensions.Options;
@@ -18,6 +19,7 @@ public sealed class SnowflakeSqlApiClient(
 
         var endpoint = new Uri(snowflake.AccountUrl, "api/v2/statements");
         using var request = new HttpRequestMessage(HttpMethod.Post, endpoint);
+        request.Headers.Accept.ParseAdd(MediaTypeNames.Application.Json);
         AddAuthorizationHeader(request, snowflake);
         request.Content = JsonContent.Create(new SnowflakeStatementRequest(
             statement,
