@@ -17,5 +17,6 @@
   <ItemGroup>
     <ProjectReference Include="..\AFH.AdviserInsights.Application\AFH.AdviserInsights.Application.csproj" />
     <ProjectReference Include="..\AFH.AdviserInsights.Contract\AFH.AdviserInsights.Contract.csproj" />
+    <ProjectReference Include="..\AFH.AdviserInsights.Domain\AFH.AdviserInsights.Domain.csproj" />
   </ItemGroup>
 </Project>

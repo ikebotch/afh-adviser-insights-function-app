@@ -1,4 +1,4 @@
-namespace AFH.AdviserInsights.Infrastructure.Clients;
+namespace AFH.AdviserInsights.Infrastructure.Persistence.Snowflake;
 
 public interface ISnowflakeSqlClient
 {

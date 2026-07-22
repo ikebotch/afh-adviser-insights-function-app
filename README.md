@@ -51,6 +51,8 @@ Aum.Read.All  -> unrestricted AUM scope for finance/admin users
 
 ## Snowflake
 
+This service intentionally does not use EF Core for Snowflake. Booking uses EF Core because it owns an operational SQL Server persistence store. Adviser Insights is a read-only analytics service over Snowflake, so the persistence adapter lives under `AFH.AdviserInsights.Infrastructure/Persistence/Snowflake` and implements the application repository contract using the Snowflake SQL API.
+
 The Phase 1 queries use these Snowflake tables:
 
 ```text

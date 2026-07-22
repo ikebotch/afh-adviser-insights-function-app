@@ -21,5 +21,6 @@
     <ProjectReference Include="..\..\src\AFH.AdviserInsights.Application\AFH.AdviserInsights.Application.csproj" />
     <ProjectReference Include="..\..\src\AFH.AdviserInsights.Infrastructure\AFH.AdviserInsights.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\AFH.AdviserInsights.Contract\AFH.AdviserInsights.Contract.csproj" />
+    <ProjectReference Include="..\..\src\AFH.AdviserInsights.Domain\AFH.AdviserInsights.Domain.csproj" />
   </ItemGroup>
 </Project>

@@ -15,11 +15,3 @@ public sealed record UserAccessScope(
     string ScopeType,
     string? ScopeValue,
     string? DisplayName);
-
-public sealed record AdviserDataScope(
-    string AccessMode,
-    string? Email,
-    string? AdviserId,
-    string? ManagerName,
-    bool IncludeTeam,
-    bool IncludeAll);

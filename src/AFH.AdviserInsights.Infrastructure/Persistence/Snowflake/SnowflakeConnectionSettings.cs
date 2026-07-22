@@ -1,6 +1,6 @@
 using AFH.AdviserInsights.Infrastructure.Options;
 
-namespace AFH.AdviserInsights.Infrastructure.Clients;
+namespace AFH.AdviserInsights.Infrastructure.Persistence.Snowflake;
 
 internal sealed record SnowflakeConnectionSettings(
     Uri AccountUrl,

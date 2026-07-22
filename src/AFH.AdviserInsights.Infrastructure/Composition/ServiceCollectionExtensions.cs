@@ -1,6 +1,8 @@
-using AFH.AdviserInsights.Application.Abstractions;
-using AFH.AdviserInsights.Infrastructure.Clients;
+using AFH.AdviserInsights.Application.Abstractions.Auth;
+using AFH.AdviserInsights.Application.Abstractions.Persistence;
+using AFH.AdviserInsights.Infrastructure.Auth;
 using AFH.AdviserInsights.Infrastructure.Options;
+using AFH.AdviserInsights.Infrastructure.Persistence.Snowflake;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 

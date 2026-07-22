@@ -1,7 +1,7 @@
 using System.Net;
 using System.Security.Cryptography;
-using AFH.AdviserInsights.Infrastructure.Clients;
 using AFH.AdviserInsights.Infrastructure.Options;
+using AFH.AdviserInsights.Infrastructure.Persistence.Snowflake;
 using Microsoft.Extensions.Options;
 
 namespace AFH.AdviserInsights.Tests;

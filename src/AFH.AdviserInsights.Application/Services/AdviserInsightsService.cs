@@ -1,6 +1,8 @@
 using System.Net;
 using AFH.AdviserInsights.Application.Abstractions;
+using AFH.AdviserInsights.Application.Abstractions.Persistence;
 using AFH.AdviserInsights.Contract;
+using AFH.AdviserInsights.Domain.Access;
 
 namespace AFH.AdviserInsights.Application.Services;
 

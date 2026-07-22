@@ -1,4 +1,6 @@
-namespace AFH.AdviserInsights.Application.Abstractions;
+using AFH.AdviserInsights.Application.Abstractions;
+
+namespace AFH.AdviserInsights.Application.Abstractions.Auth;
 
 public interface IIdentityClient
 {

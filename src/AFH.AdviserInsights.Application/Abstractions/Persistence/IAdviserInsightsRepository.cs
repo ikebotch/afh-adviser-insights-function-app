@@ -1,6 +1,7 @@
 using AFH.AdviserInsights.Contract;
+using AFH.AdviserInsights.Domain.Access;
 
-namespace AFH.AdviserInsights.Application.Abstractions;
+namespace AFH.AdviserInsights.Application.Abstractions.Persistence;
 
 public interface IAdviserInsightsRepository
 {

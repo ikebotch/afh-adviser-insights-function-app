@@ -3,7 +3,7 @@ using System.Text.Json;
 using AFH.AdviserInsights.Infrastructure.Options;
 using Microsoft.Extensions.Options;
 
-namespace AFH.AdviserInsights.Infrastructure.Clients;
+namespace AFH.AdviserInsights.Infrastructure.Persistence.Snowflake;
 
 public sealed class SnowflakeSqlApiClient(
     HttpClient http,

@@ -1,10 +1,11 @@
 using System.Net.Http.Json;
 using AFH.AdviserInsights.Application.Abstractions;
+using AFH.AdviserInsights.Application.Abstractions.Auth;
 using AFH.AdviserInsights.Infrastructure.Options;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace AFH.AdviserInsights.Infrastructure.Clients;
+namespace AFH.AdviserInsights.Infrastructure.Auth;
 
 public sealed class IdentityClient(
     HttpClient http,

@@ -2,7 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 
-namespace AFH.AdviserInsights.Infrastructure.Clients;
+namespace AFH.AdviserInsights.Infrastructure.Persistence.Snowflake;
 
 internal static class SnowflakeJwtTokenFactory
 {

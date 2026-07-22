@@ -1,5 +1,7 @@
 using System.Net;
 using AFH.AdviserInsights.Application.Abstractions;
+using AFH.AdviserInsights.Application.Abstractions.Auth;
+using AFH.AdviserInsights.Domain.Access;
 
 namespace AFH.AdviserInsights.Application.Services;
 

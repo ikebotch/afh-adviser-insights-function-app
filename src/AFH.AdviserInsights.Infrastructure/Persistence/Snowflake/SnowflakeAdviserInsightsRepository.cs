@@ -1,10 +1,11 @@
 using System.Globalization;
-using AFH.AdviserInsights.Application.Abstractions;
+using AFH.AdviserInsights.Application.Abstractions.Persistence;
 using AFH.AdviserInsights.Contract;
+using AFH.AdviserInsights.Domain.Access;
 using AFH.AdviserInsights.Infrastructure.Options;
 using Microsoft.Extensions.Options;
 
-namespace AFH.AdviserInsights.Infrastructure.Clients;
+namespace AFH.AdviserInsights.Infrastructure.Persistence.Snowflake;
 
 public sealed class SnowflakeAdviserInsightsRepository(
     ISnowflakeSqlClient snowflake,
