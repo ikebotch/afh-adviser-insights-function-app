@@ -1,0 +1,119 @@
+using AFH.AdviserInsights.Function.Http;
+using Microsoft.Azure.Functions.Worker;
+using Microsoft.Azure.Functions.Worker.Http;
+using System.Net;
+using System.Text;
+using System.Text.Json;
+
+namespace AFH.AdviserInsights.Function.Functions.V1;
+
+public sealed class DocsFunction
+{
+    [Function("AdviserInsights_OpenApiV1")]
+    public async Task<HttpResponseData> OpenApi(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "openapi/v1.json")] HttpRequestData request,
+        CancellationToken cancellationToken)
+        => await request.JsonAsync(HttpStatusCode.OK, CreateDocument(), cancellationToken);
+
+    [Function("AdviserInsights_Scalar")]
+    public async Task<HttpResponseData> Scalar(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "scalar")] HttpRequestData request,
+        CancellationToken cancellationToken)
+    {
+        var response = request.CreateResponse(HttpStatusCode.OK);
+        response.Headers.Add("Content-Type", "text/html; charset=utf-8");
+        var html = """
+            <!doctype html>
+            <html>
+              <head>
+                <title>AFH Adviser Insights API</title>
+                <meta charset="utf-8" />
+                <meta name="viewport" content="width=device-width, initial-scale=1" />
+              </head>
+              <body>
+                <script
+                  id="api-reference"
+                  data-url="/api/openapi/v1.json"
+                  data-theme="purple">
+                </script>
+                <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script>
+              </body>
+            </html>
+            """;
+        await response.Body.WriteAsync(Encoding.UTF8.GetBytes(html), cancellationToken);
+        return response;
+    }
+
+    private static object CreateDocument()
+    {
+        var paths = new Dictionary<string, object>
+        {
+            ["/api/health"] = Get("health", "Health", "Health check."),
+            ["/api/v1/me/adviser"] = Get("getMyAdviser", "Adviser", "Get the signed-in adviser profile."),
+            ["/api/v1/me/team/advisers"] = Get("getMyTeamAdvisers", "Adviser", "Get advisers managed by the signed-in manager."),
+            ["/api/v1/me/clients"] = Get("getMyClients", "Clients", "Get clients in the signed-in user's adviser scope.", hasPageSize: true),
+            ["/api/v1/me/policies"] = Get("getMyPolicies", "Policies", "Get policies in the signed-in user's adviser scope.", hasPageSize: true),
+            ["/api/v1/me/aum-summary"] = Get("getMyAumSummary", "AUM", "Get AUM summary in the signed-in user's adviser scope."),
+            ["/api/v1/me/clients/highest-policy-value"] = Get("getMyHighValueClients", "Clients", "Find clients with highest policy/AUM value.", hasPageSize: true),
+            ["/api/v1/me/clients/missing-annual-review"] = Get("getMyClientsMissingAnnualReview", "Clients", "Find clients without an annual policy review in the last 12 months.", hasPageSize: true)
+        };
+
+        return new
+        {
+            openapi = "3.0.3",
+            info = new
+            {
+                title = "AFH Adviser Insights API",
+                version = "1.0.0",
+                description = "Read-only Phase 1 Adviser/AUM insights over Snowflake."
+            },
+            paths,
+            components = new
+            {
+                securitySchemes = new
+                {
+                    bearerAuth = new
+                    {
+                        type = "http",
+                        scheme = "bearer",
+                        bearerFormat = "JWT"
+                    }
+                }
+            }
+        };
+    }
+
+    private static object Get(string operationId, string tag, string summary, bool hasPageSize = false)
+    {
+        var operation = new Dictionary<string, object?>
+        {
+            ["tags"] = new[] { tag },
+            ["operationId"] = operationId,
+            ["summary"] = summary,
+            ["security"] = new object[] { new Dictionary<string, string[]> { ["bearerAuth"] = [] } },
+            ["responses"] = new Dictionary<string, object>
+            {
+                ["200"] = new { description = "Successful response." },
+                ["401"] = new { description = "Unauthorized." },
+                ["403"] = new { description = "Forbidden." }
+            }
+        };
+
+        if (hasPageSize)
+        {
+            operation["parameters"] = new[]
+            {
+                new
+                {
+                    name = "pageSize",
+                    @in = "query",
+                    required = false,
+                    schema = new { type = "integer", minimum = 1, maximum = 100 },
+                    description = "Maximum number of rows to return."
+                }
+            };
+        }
+
+        return new Dictionary<string, object?> { ["get"] = operation };
+    }
+}

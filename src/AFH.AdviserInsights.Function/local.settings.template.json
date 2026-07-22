@@ -1,0 +1,15 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "dotnet-isolated",
+    "AdviserInsights__Identity__BaseUrl": "http://localhost:7077",
+    "AdviserInsights__Identity__FunctionKey": "",
+    "AdviserInsights__Snowflake__AccountUrl": "https://<account>.snowflakecomputing.com",
+    "AdviserInsights__Snowflake__ApiToken": "",
+    "AdviserInsights__Snowflake__Warehouse": "DEFAULT",
+    "AdviserInsights__Snowflake__Database": "DIM_DB_DEV",
+    "AdviserInsights__Snowflake__Schema": "AFH",
+    "AdviserInsights__Snowflake__Role": "PUBLIC"
+  }
+}
