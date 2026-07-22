@@ -71,17 +71,19 @@ public sealed class SnowflakeAdviserInsightsRepository(
     {
         var rows = await snowflake.QueryAsync($"""
             SELECT
-                c.CLIENT_ID,
+                c.CLIENT_ENTITY_ID AS CLIENT_ID,
                 c.ENTITYNAME AS CLIENT_NAME,
                 a.ADVISER_ID,
                 a.ADVISER AS ADVISER_NAME,
                 c.HOUSEHOLD,
-                SUM(COALESCE(f.AUM_VALUE, 0)) AS AUM_VALUE
+                SUM(COALESCE(f.ADJUSTED_VALUATION, f.VALUATION, 0)) AS AUM_VALUE
             FROM {Table("DIM_CUSTOMER")} c
-            INNER JOIN {Table("DIM_ADVISER")} a ON a.ADVISER_ID = c.ADVISER_ID
-            LEFT JOIN {Table("FACT_AUM")} f ON f.CLIENT_ID = c.CLIENT_ID
+            INNER JOIN {Table("FACT_CUSTOMER")} fc ON fc.ENTITY_SK = c.ENTITY_SK
+            INNER JOIN {Table("DIM_ADVISER")} a ON a.ADVISER_SK = fc.ADVISER_SK
+            LEFT JOIN {Table("DIM_HOUSEHOLD_X_CUST")} hc ON hc.ENTITY_SK = c.ENTITY_SK
+            LEFT JOIN {Table("FACT_AUM")} f ON f.HOUSEHOLD_SK = hc.HOUSEHOLD_SK
             WHERE {ScopeFilter(scope, "a")}
-            GROUP BY c.CLIENT_ID, c.ENTITYNAME, a.ADVISER_ID, a.ADVISER, c.HOUSEHOLD
+            GROUP BY c.CLIENT_ENTITY_ID, c.ENTITYNAME, a.ADVISER_ID, a.ADVISER, c.HOUSEHOLD
             ORDER BY AUM_VALUE DESC, CLIENT_NAME
             LIMIT {pageSize}
             """, cancellationToken).ConfigureAwait(false);
@@ -103,22 +105,23 @@ public sealed class SnowflakeAdviserInsightsRepository(
         var rows = await snowflake.QueryAsync($"""
             SELECT
                 p.XPLAN_POLICY_SK AS POLICY_ID,
-                c.CLIENT_ID,
+                c.CLIENT_ENTITY_ID AS CLIENT_ID,
                 c.ENTITYNAME AS CLIENT_NAME,
                 a.ADVISER_ID,
                 a.ADVISER AS ADVISER_NAME,
-                ps.REPORT_NAME,
+                COALESCE(ps.REPORT_NAME, p.REPORT_NAME) AS REPORT_NAME,
                 ps.POLICY_START_DATE,
                 ps.POLICY_SERVICE_CLOSE_DATE,
-                SUM(COALESCE(f.AUM_VALUE, 0)) AS AUM_VALUE
+                SUM(COALESCE(f.ADJUSTED_VALUATION, f.VALUATION, 0)) AS AUM_VALUE
             FROM {Table("DIM_CUSTOMER")} c
-            INNER JOIN {Table("DIM_ADVISER")} a ON a.ADVISER_ID = c.ADVISER_ID
-            INNER JOIN {Table("DIM_CUSTOMER_X_POLICY")} cp ON cp.CLIENT_ID = c.CLIENT_ID
+            INNER JOIN {Table("FACT_CUSTOMER")} fc ON fc.ENTITY_SK = c.ENTITY_SK
+            INNER JOIN {Table("DIM_ADVISER")} a ON a.ADVISER_SK = fc.ADVISER_SK
+            INNER JOIN {Table("DIM_CUSTOMER_X_POLICY")} cp ON cp.ENTITY_SK = c.ENTITY_SK
             INNER JOIN {Table("DIM_XPLAN_POLICY")} p ON p.XPLAN_POLICY_SK = cp.XPLAN_POLICY_SK
             LEFT JOIN {Table("DIM_POLICY_SERVICE_START_END_DATE")} ps ON ps.XPLAN_POLICY_SK = p.XPLAN_POLICY_SK
             LEFT JOIN {Table("FACT_AUM")} f ON f.XPLAN_POLICY_SK = p.XPLAN_POLICY_SK
             WHERE {ScopeFilter(scope, "a")}
-            GROUP BY p.XPLAN_POLICY_SK, c.CLIENT_ID, c.ENTITYNAME, a.ADVISER_ID, a.ADVISER, ps.REPORT_NAME, ps.POLICY_START_DATE, ps.POLICY_SERVICE_CLOSE_DATE
+            GROUP BY p.XPLAN_POLICY_SK, c.CLIENT_ENTITY_ID, c.ENTITYNAME, a.ADVISER_ID, a.ADVISER, COALESCE(ps.REPORT_NAME, p.REPORT_NAME), ps.POLICY_START_DATE, ps.POLICY_SERVICE_CLOSE_DATE
             ORDER BY AUM_VALUE DESC, CLIENT_NAME
             LIMIT {pageSize}
             """, cancellationToken).ConfigureAwait(false);
@@ -140,12 +143,14 @@ public sealed class SnowflakeAdviserInsightsRepository(
         var rows = await snowflake.QueryAsync($"""
             SELECT
                 COUNT(DISTINCT a.ADVISER_ID) AS ADVISER_COUNT,
-                COUNT(DISTINCT c.CLIENT_ID) AS CLIENT_COUNT,
+                COUNT(DISTINCT c.CLIENT_ENTITY_ID) AS CLIENT_COUNT,
                 COUNT(DISTINCT f.XPLAN_POLICY_SK) AS POLICY_COUNT,
-                SUM(COALESCE(f.AUM_VALUE, 0)) AS TOTAL_AUM
+                SUM(COALESCE(f.ADJUSTED_VALUATION, f.VALUATION, 0)) AS TOTAL_AUM
             FROM {Table("DIM_CUSTOMER")} c
-            INNER JOIN {Table("DIM_ADVISER")} a ON a.ADVISER_ID = c.ADVISER_ID
-            LEFT JOIN {Table("FACT_AUM")} f ON f.CLIENT_ID = c.CLIENT_ID
+            INNER JOIN {Table("FACT_CUSTOMER")} fc ON fc.ENTITY_SK = c.ENTITY_SK
+            INNER JOIN {Table("DIM_ADVISER")} a ON a.ADVISER_SK = fc.ADVISER_SK
+            LEFT JOIN {Table("DIM_HOUSEHOLD_X_CUST")} hc ON hc.ENTITY_SK = c.ENTITY_SK
+            LEFT JOIN {Table("FACT_AUM")} f ON f.HOUSEHOLD_SK = hc.HOUSEHOLD_SK
             WHERE {ScopeFilter(scope, "a")}
             """, cancellationToken).ConfigureAwait(false);
 
@@ -165,17 +170,19 @@ public sealed class SnowflakeAdviserInsightsRepository(
     {
         var rows = await snowflake.QueryAsync($"""
             SELECT
-                c.CLIENT_ID,
+                c.CLIENT_ENTITY_ID AS CLIENT_ID,
                 c.ENTITYNAME AS CLIENT_NAME,
                 a.ADVISER_ID,
                 a.ADVISER AS ADVISER_NAME,
-                SUM(COALESCE(f.AUM_VALUE, 0)) AS TOTAL_POLICY_VALUE,
+                SUM(COALESCE(f.ADJUSTED_VALUATION, f.VALUATION, 0)) AS TOTAL_POLICY_VALUE,
                 COUNT(DISTINCT f.XPLAN_POLICY_SK) AS POLICY_COUNT
             FROM {Table("DIM_CUSTOMER")} c
-            INNER JOIN {Table("DIM_ADVISER")} a ON a.ADVISER_ID = c.ADVISER_ID
-            LEFT JOIN {Table("FACT_AUM")} f ON f.CLIENT_ID = c.CLIENT_ID
+            INNER JOIN {Table("FACT_CUSTOMER")} fc ON fc.ENTITY_SK = c.ENTITY_SK
+            INNER JOIN {Table("DIM_ADVISER")} a ON a.ADVISER_SK = fc.ADVISER_SK
+            LEFT JOIN {Table("DIM_HOUSEHOLD_X_CUST")} hc ON hc.ENTITY_SK = c.ENTITY_SK
+            LEFT JOIN {Table("FACT_AUM")} f ON f.HOUSEHOLD_SK = hc.HOUSEHOLD_SK
             WHERE {ScopeFilter(scope, "a")}
-            GROUP BY c.CLIENT_ID, c.ENTITYNAME, a.ADVISER_ID, a.ADVISER
+            GROUP BY c.CLIENT_ENTITY_ID, c.ENTITYNAME, a.ADVISER_ID, a.ADVISER
             ORDER BY TOTAL_POLICY_VALUE DESC
             LIMIT {pageSize}
             """, cancellationToken).ConfigureAwait(false);
@@ -196,19 +203,20 @@ public sealed class SnowflakeAdviserInsightsRepository(
     {
         var rows = await snowflake.QueryAsync($"""
             SELECT
-                c.CLIENT_ID,
+                c.CLIENT_ENTITY_ID AS CLIENT_ID,
                 c.ENTITYNAME AS CLIENT_NAME,
                 a.ADVISER_ID,
                 a.ADVISER AS ADVISER_NAME,
                 MAX(ps.POLICY_SERVICE_CLOSE_DATE) AS LAST_POLICY_SERVICE_DATE,
                 COUNT(DISTINCT p.XPLAN_POLICY_SK) AS ACTIVE_POLICY_COUNT
             FROM {Table("DIM_CUSTOMER")} c
-            INNER JOIN {Table("DIM_ADVISER")} a ON a.ADVISER_ID = c.ADVISER_ID
-            INNER JOIN {Table("DIM_CUSTOMER_X_POLICY")} cp ON cp.CLIENT_ID = c.CLIENT_ID
+            INNER JOIN {Table("FACT_CUSTOMER")} fc ON fc.ENTITY_SK = c.ENTITY_SK
+            INNER JOIN {Table("DIM_ADVISER")} a ON a.ADVISER_SK = fc.ADVISER_SK
+            INNER JOIN {Table("DIM_CUSTOMER_X_POLICY")} cp ON cp.ENTITY_SK = c.ENTITY_SK
             INNER JOIN {Table("DIM_XPLAN_POLICY")} p ON p.XPLAN_POLICY_SK = cp.XPLAN_POLICY_SK
             LEFT JOIN {Table("DIM_POLICY_SERVICE_START_END_DATE")} ps ON ps.XPLAN_POLICY_SK = p.XPLAN_POLICY_SK
             WHERE {ScopeFilter(scope, "a")}
-            GROUP BY c.CLIENT_ID, c.ENTITYNAME, a.ADVISER_ID, a.ADVISER
+            GROUP BY c.CLIENT_ENTITY_ID, c.ENTITYNAME, a.ADVISER_ID, a.ADVISER
             HAVING MAX(ps.POLICY_SERVICE_CLOSE_DATE) IS NULL
                 OR MAX(ps.POLICY_SERVICE_CLOSE_DATE) < DATEADD(year, -1, CURRENT_DATE())
             ORDER BY LAST_POLICY_SERVICE_DATE NULLS FIRST, CLIENT_NAME

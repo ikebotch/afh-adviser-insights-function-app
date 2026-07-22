@@ -28,6 +28,10 @@ public sealed class SnowflakeAdviserInsightsRepositoryTests
 
         Assert.Single(result);
         Assert.Contains("FROM \"DIM_DB_DEV\".\"AFH\".\"DIM_CUSTOMER\"", snowflake.Statement, StringComparison.Ordinal);
+        Assert.Contains("c.CLIENT_ENTITY_ID AS CLIENT_ID", snowflake.Statement, StringComparison.Ordinal);
+        Assert.Contains("INNER JOIN \"DIM_DB_DEV\".\"AFH\".\"FACT_CUSTOMER\" fc ON fc.ENTITY_SK = c.ENTITY_SK", snowflake.Statement, StringComparison.Ordinal);
+        Assert.Contains("LEFT JOIN \"DIM_DB_DEV\".\"AFH\".\"FACT_AUM\" f ON f.HOUSEHOLD_SK = hc.HOUSEHOLD_SK", snowflake.Statement, StringComparison.Ordinal);
+        Assert.Contains("COALESCE(f.ADJUSTED_VALUATION, f.VALUATION, 0)", snowflake.Statement, StringComparison.Ordinal);
         Assert.Contains("a.ADVISER_ID = 'adv-1'", snowflake.Statement, StringComparison.Ordinal);
         Assert.Equal(12345.67m, result[0].AumValue);
     }
