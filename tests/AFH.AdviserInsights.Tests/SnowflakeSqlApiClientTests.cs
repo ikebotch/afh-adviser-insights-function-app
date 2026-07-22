@@ -50,6 +50,7 @@ public sealed class SnowflakeSqlApiClientTests
         Assert.Single(rows);
         Assert.Equal("https://hhh.west-europe.azure.snowflakecomputing.com/api/v2/statements", handler.Request!.RequestUri!.ToString());
         Assert.Contains(handler.Request.Headers.Accept, header => header.MediaType == "application/json");
+        Assert.Contains(handler.Request.Headers.UserAgent, header => header.Product?.Name == "AFH.AdviserInsights");
         Assert.Equal("Bearer", handler.Request.Headers.Authorization!.Scheme);
         Assert.False(string.IsNullOrWhiteSpace(handler.Request.Headers.Authorization.Parameter));
         Assert.True(handler.Request.Headers.TryGetValues("X-Snowflake-Authorization-Token-Type", out var values));

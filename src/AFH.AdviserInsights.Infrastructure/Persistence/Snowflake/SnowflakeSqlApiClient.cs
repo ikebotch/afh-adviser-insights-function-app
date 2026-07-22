@@ -20,6 +20,7 @@ public sealed class SnowflakeSqlApiClient(
         var endpoint = new Uri(snowflake.AccountUrl, "api/v2/statements");
         using var request = new HttpRequestMessage(HttpMethod.Post, endpoint);
         request.Headers.Accept.ParseAdd(MediaTypeNames.Application.Json);
+        request.Headers.UserAgent.ParseAdd("AFH.AdviserInsights/1.0");
         AddAuthorizationHeader(request, snowflake);
         request.Content = JsonContent.Create(new SnowflakeStatementRequest(
             statement,
