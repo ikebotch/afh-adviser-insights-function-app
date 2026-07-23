@@ -6,4 +6,7 @@ public sealed record AdviserDataScope(
     string? AdviserId,
     string? ManagerName,
     bool IncludeTeam,
-    bool IncludeAll);
+    bool IncludeAll,
+    string? TargetAdviserId = null,
+    string? TargetAdviserName = null,
+    string? TargetAdviserEmail = null);

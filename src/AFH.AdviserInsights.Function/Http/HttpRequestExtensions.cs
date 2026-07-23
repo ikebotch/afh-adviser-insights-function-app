@@ -13,4 +13,10 @@ public static class HttpRequestExtensions
         => int.TryParse(System.Web.HttpUtility.ParseQueryString(request.Url.Query)[name], out var value)
             ? value
             : fallback;
+
+    public static string? Query(this HttpRequestData request, string name)
+    {
+        var value = System.Web.HttpUtility.ParseQueryString(request.Url.Query)[name];
+        return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    }
 }

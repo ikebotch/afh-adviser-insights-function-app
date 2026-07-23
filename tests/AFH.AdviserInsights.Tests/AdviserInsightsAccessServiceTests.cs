@@ -21,7 +21,7 @@ public sealed class AdviserInsightsAccessServiceTests
             []));
         var service = new AdviserInsightsAccessService(identity);
 
-        var result = await service.ResolveScopeAsync("Bearer token", "corr-1", allowTeamScope: true, CancellationToken.None);
+        var result = await service.ResolveScopeAsync("Bearer token", "corr-1", allowTeamScope: true, target: null, CancellationToken.None);
 
         Assert.True(result.IsSuccess);
         Assert.Equal("Self", result.Value!.AccessMode);
@@ -43,7 +43,7 @@ public sealed class AdviserInsightsAccessServiceTests
             []));
         var service = new AdviserInsightsAccessService(identity);
 
-        var result = await service.ResolveScopeAsync("Bearer token", "corr-1", allowTeamScope: true, CancellationToken.None);
+        var result = await service.ResolveScopeAsync("Bearer token", "corr-1", allowTeamScope: true, target: null, CancellationToken.None);
 
         Assert.True(result.IsSuccess);
         Assert.Equal("Team", result.Value!.AccessMode);
@@ -56,7 +56,7 @@ public sealed class AdviserInsightsAccessServiceTests
     {
         var service = new AdviserInsightsAccessService(new StubIdentityClient(null));
 
-        var result = await service.ResolveScopeAsync("Bearer token", "corr-1", allowTeamScope: true, CancellationToken.None);
+        var result = await service.ResolveScopeAsync("Bearer token", "corr-1", allowTeamScope: true, target: null, CancellationToken.None);
 
         Assert.False(result.IsSuccess);
         Assert.Equal(HttpStatusCode.Unauthorized, result.StatusCode);

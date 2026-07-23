@@ -11,6 +11,7 @@ public sealed class AdviserInsightsAccessService(IIdentityClient identityClient)
         string? bearerToken,
         string? correlationId,
         bool allowTeamScope,
+        AdviserTargetFilter? target,
         CancellationToken cancellationToken)
     {
         var user = await identityClient.GetCurrentUserAsync(bearerToken, correlationId, cancellationToken)
@@ -32,7 +33,10 @@ public sealed class AdviserInsightsAccessService(IIdentityClient identityClient)
                 user.AdviserId,
                 user.DisplayName,
                 IncludeTeam: true,
-                IncludeAll: true));
+                IncludeAll: true,
+                TargetAdviserId: target?.AdviserId,
+                TargetAdviserName: target?.AdviserName,
+                TargetAdviserEmail: target?.AdviserEmail));
         }
 
         if (allowTeamScope && HasPermission(user, AdviserInsightPermissionNames.TeamRead))
@@ -43,7 +47,10 @@ public sealed class AdviserInsightsAccessService(IIdentityClient identityClient)
                 user.AdviserId,
                 user.DisplayName,
                 IncludeTeam: true,
-                IncludeAll: false));
+                IncludeAll: false,
+                TargetAdviserId: target?.AdviserId,
+                TargetAdviserName: target?.AdviserName,
+                TargetAdviserEmail: target?.AdviserEmail));
         }
 
         if (HasPermission(user, AdviserInsightPermissionNames.SelfRead) ||
@@ -56,7 +63,10 @@ public sealed class AdviserInsightsAccessService(IIdentityClient identityClient)
                 user.AdviserId,
                 user.DisplayName,
                 IncludeTeam: false,
-                IncludeAll: false));
+                IncludeAll: false,
+                TargetAdviserId: target?.AdviserId,
+                TargetAdviserName: target?.AdviserName,
+                TargetAdviserEmail: target?.AdviserEmail));
         }
 
         return ServiceResult<AdviserDataScope>.Fail(
@@ -80,3 +90,8 @@ public sealed class AdviserInsightsAccessService(IIdentityClient identityClient)
            area.Equals("Aum", StringComparison.OrdinalIgnoreCase) ||
            area.Equals("AdviserInsights", StringComparison.OrdinalIgnoreCase);
 }
+
+public sealed record AdviserTargetFilter(
+    string? AdviserId,
+    string? AdviserName,
+    string? AdviserEmail);

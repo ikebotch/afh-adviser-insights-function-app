@@ -310,6 +310,62 @@ public sealed class SnowflakeAdviserInsightsRepository(
         IQueryable<DimAdviserEntity> query,
         AdviserDataScope scope)
     {
+        if (HasTargetAdviser(scope))
+        {
+            if (!scope.IncludeAll)
+            {
+                var managerName = scope.ManagerName;
+                var signedInEmail = scope.Email?.ToLower();
+                var signedInAdviserId = NumericIdentifierOrNull(scope.AdviserId);
+                query = query.Where(adviser =>
+                    adviser.AdviserManager == managerName ||
+                    (signedInAdviserId != null && adviser.AdviserId == signedInAdviserId) ||
+                    (adviser.EmailAddress != null && adviser.EmailAddress.ToLower() == signedInEmail));
+            }
+
+            return ApplyTargetFilter(query, scope);
+        }
+
+        return ApplySignedInAdviserFilter(query, scope);
+    }
+
+    private static IQueryable<AdviserClientAumRow> ApplyScopeFilter(
+        IQueryable<AdviserClientAumRow> query,
+        AdviserDataScope scope)
+    {
+        if (scope.IncludeAll)
+            return query;
+
+        query = ApplyBoundaryFilter(query, scope);
+        return ApplyTargetFilter(query, scope);
+    }
+
+    private static IQueryable<AdviserPolicyAumRow> ApplyScopeFilter(
+        IQueryable<AdviserPolicyAumRow> query,
+        AdviserDataScope scope)
+    {
+        if (scope.IncludeAll)
+            return query;
+
+        query = ApplyBoundaryFilter(query, scope);
+        return ApplyTargetFilter(query, scope);
+    }
+
+    private static IQueryable<AdviserPolicyServiceRow> ApplyScopeFilter(
+        IQueryable<AdviserPolicyServiceRow> query,
+        AdviserDataScope scope)
+    {
+        if (scope.IncludeAll)
+            return query;
+
+        query = ApplyBoundaryFilter(query, scope);
+        return ApplyTargetFilter(query, scope);
+    }
+
+    private static IQueryable<DimAdviserEntity> ApplySignedInAdviserFilter(
+        IQueryable<DimAdviserEntity> query,
+        AdviserDataScope scope)
+    {
         var email = scope.Email?.ToLower();
         var adviserId = NumericIdentifierOrNull(scope.AdviserId);
         return query.Where(adviser =>
@@ -318,7 +374,25 @@ public sealed class SnowflakeAdviserInsightsRepository(
             adviser.Adviser == scope.ManagerName);
     }
 
-    private static IQueryable<AdviserClientAumRow> ApplyScopeFilter(
+    private static IQueryable<DimAdviserEntity> ApplyTargetFilter(
+        IQueryable<DimAdviserEntity> query,
+        AdviserDataScope scope)
+    {
+        var targetAdviserId = NumericIdentifierOrNull(scope.TargetAdviserId);
+        var targetEmail = scope.TargetAdviserEmail?.ToLower();
+        var targetName = scope.TargetAdviserName?.ToLower();
+
+        if (targetAdviserId is not null)
+            query = query.Where(adviser => adviser.AdviserId == targetAdviserId);
+        if (targetEmail is not null)
+            query = query.Where(adviser => adviser.EmailAddress != null && adviser.EmailAddress.ToLower() == targetEmail);
+        if (targetName is not null)
+            query = query.Where(adviser => adviser.Adviser != null && adviser.Adviser.ToLower().Contains(targetName));
+
+        return query;
+    }
+
+    private static IQueryable<AdviserClientAumRow> ApplyBoundaryFilter(
         IQueryable<AdviserClientAumRow> query,
         AdviserDataScope scope)
     {
@@ -338,7 +412,7 @@ public sealed class SnowflakeAdviserInsightsRepository(
                 row.Adviser.Adviser == scope.ManagerName);
     }
 
-    private static IQueryable<AdviserPolicyAumRow> ApplyScopeFilter(
+    private static IQueryable<AdviserPolicyAumRow> ApplyBoundaryFilter(
         IQueryable<AdviserPolicyAumRow> query,
         AdviserDataScope scope)
     {
@@ -358,7 +432,7 @@ public sealed class SnowflakeAdviserInsightsRepository(
                 row.Adviser.Adviser == scope.ManagerName);
     }
 
-    private static IQueryable<AdviserPolicyServiceRow> ApplyScopeFilter(
+    private static IQueryable<AdviserPolicyServiceRow> ApplyBoundaryFilter(
         IQueryable<AdviserPolicyServiceRow> query,
         AdviserDataScope scope)
     {
@@ -377,6 +451,65 @@ public sealed class SnowflakeAdviserInsightsRepository(
                 (row.Adviser.EmailAddress != null && row.Adviser.EmailAddress.ToLower() == email) ||
                 row.Adviser.Adviser == scope.ManagerName);
     }
+
+    private static IQueryable<AdviserClientAumRow> ApplyTargetFilter(
+        IQueryable<AdviserClientAumRow> query,
+        AdviserDataScope scope)
+    {
+        var targetAdviserId = NumericIdentifierOrNull(scope.TargetAdviserId);
+        var targetEmail = scope.TargetAdviserEmail?.ToLower();
+        var targetName = scope.TargetAdviserName?.ToLower();
+
+        if (targetAdviserId is not null)
+            query = query.Where(row => row.Adviser.AdviserId == targetAdviserId);
+        if (targetEmail is not null)
+            query = query.Where(row => row.Adviser.EmailAddress != null && row.Adviser.EmailAddress.ToLower() == targetEmail);
+        if (targetName is not null)
+            query = query.Where(row => row.Adviser.Adviser != null && row.Adviser.Adviser.ToLower().Contains(targetName));
+
+        return query;
+    }
+
+    private static IQueryable<AdviserPolicyAumRow> ApplyTargetFilter(
+        IQueryable<AdviserPolicyAumRow> query,
+        AdviserDataScope scope)
+    {
+        var targetAdviserId = NumericIdentifierOrNull(scope.TargetAdviserId);
+        var targetEmail = scope.TargetAdviserEmail?.ToLower();
+        var targetName = scope.TargetAdviserName?.ToLower();
+
+        if (targetAdviserId is not null)
+            query = query.Where(row => row.Adviser.AdviserId == targetAdviserId);
+        if (targetEmail is not null)
+            query = query.Where(row => row.Adviser.EmailAddress != null && row.Adviser.EmailAddress.ToLower() == targetEmail);
+        if (targetName is not null)
+            query = query.Where(row => row.Adviser.Adviser != null && row.Adviser.Adviser.ToLower().Contains(targetName));
+
+        return query;
+    }
+
+    private static IQueryable<AdviserPolicyServiceRow> ApplyTargetFilter(
+        IQueryable<AdviserPolicyServiceRow> query,
+        AdviserDataScope scope)
+    {
+        var targetAdviserId = NumericIdentifierOrNull(scope.TargetAdviserId);
+        var targetEmail = scope.TargetAdviserEmail?.ToLower();
+        var targetName = scope.TargetAdviserName?.ToLower();
+
+        if (targetAdviserId is not null)
+            query = query.Where(row => row.Adviser.AdviserId == targetAdviserId);
+        if (targetEmail is not null)
+            query = query.Where(row => row.Adviser.EmailAddress != null && row.Adviser.EmailAddress.ToLower() == targetEmail);
+        if (targetName is not null)
+            query = query.Where(row => row.Adviser.Adviser != null && row.Adviser.Adviser.ToLower().Contains(targetName));
+
+        return query;
+    }
+
+    private static bool HasTargetAdviser(AdviserDataScope scope)
+        => !string.IsNullOrWhiteSpace(scope.TargetAdviserId) ||
+           !string.IsNullOrWhiteSpace(scope.TargetAdviserName) ||
+           !string.IsNullOrWhiteSpace(scope.TargetAdviserEmail);
 
     private static string? NumericIdentifierOrNull(string? value)
         => long.TryParse(value, out _) ? value : null;

@@ -13,9 +13,10 @@ public sealed class AdviserInsightsService(
     public async Task<ServiceResult<AdviserProfileResponse>> GetMyAdviserAsync(
         string? bearerToken,
         string? correlationId,
+        AdviserTargetFilter? target,
         CancellationToken cancellationToken)
     {
-        var scope = await ResolveScopeAsync(bearerToken, correlationId, allowTeamScope: false, cancellationToken)
+        var scope = await ResolveScopeAsync(bearerToken, correlationId, allowTeamScope: target is not null, target, cancellationToken)
             .ConfigureAwait(false);
         if (!scope.IsSuccess)
             return Fail<AdviserProfileResponse>(scope);
@@ -29,9 +30,10 @@ public sealed class AdviserInsightsService(
     public async Task<ServiceResult<IReadOnlyList<TeamAdviserResponse>>> GetMyTeamAdvisersAsync(
         string? bearerToken,
         string? correlationId,
+        AdviserTargetFilter? target,
         CancellationToken cancellationToken)
     {
-        var scope = await ResolveScopeAsync(bearerToken, correlationId, allowTeamScope: true, cancellationToken)
+        var scope = await ResolveScopeAsync(bearerToken, correlationId, allowTeamScope: true, target, cancellationToken)
             .ConfigureAwait(false);
         if (!scope.IsSuccess)
             return Fail<IReadOnlyList<TeamAdviserResponse>>(scope);
@@ -46,10 +48,11 @@ public sealed class AdviserInsightsService(
     public async Task<ServiceResult<IReadOnlyList<ClientSummaryResponse>>> GetMyClientsAsync(
         string? bearerToken,
         string? correlationId,
+        AdviserTargetFilter? target,
         int pageSize,
         CancellationToken cancellationToken)
     {
-        var scope = await ResolveScopeAsync(bearerToken, correlationId, allowTeamScope: true, cancellationToken)
+        var scope = await ResolveScopeAsync(bearerToken, correlationId, allowTeamScope: true, target, cancellationToken)
             .ConfigureAwait(false);
         if (!scope.IsSuccess)
             return Fail<IReadOnlyList<ClientSummaryResponse>>(scope);
@@ -61,10 +64,11 @@ public sealed class AdviserInsightsService(
     public async Task<ServiceResult<IReadOnlyList<PolicySummaryResponse>>> GetMyPoliciesAsync(
         string? bearerToken,
         string? correlationId,
+        AdviserTargetFilter? target,
         int pageSize,
         CancellationToken cancellationToken)
     {
-        var scope = await ResolveScopeAsync(bearerToken, correlationId, allowTeamScope: true, cancellationToken)
+        var scope = await ResolveScopeAsync(bearerToken, correlationId, allowTeamScope: true, target, cancellationToken)
             .ConfigureAwait(false);
         if (!scope.IsSuccess)
             return Fail<IReadOnlyList<PolicySummaryResponse>>(scope);
@@ -76,9 +80,10 @@ public sealed class AdviserInsightsService(
     public async Task<ServiceResult<AumSummaryResponse>> GetMyAumSummaryAsync(
         string? bearerToken,
         string? correlationId,
+        AdviserTargetFilter? target,
         CancellationToken cancellationToken)
     {
-        var scope = await ResolveScopeAsync(bearerToken, correlationId, allowTeamScope: true, cancellationToken)
+        var scope = await ResolveScopeAsync(bearerToken, correlationId, allowTeamScope: true, target, cancellationToken)
             .ConfigureAwait(false);
         if (!scope.IsSuccess)
             return Fail<AumSummaryResponse>(scope);
@@ -90,10 +95,11 @@ public sealed class AdviserInsightsService(
     public async Task<ServiceResult<IReadOnlyList<HighValueClientResponse>>> GetMyHighValueClientsAsync(
         string? bearerToken,
         string? correlationId,
+        AdviserTargetFilter? target,
         int pageSize,
         CancellationToken cancellationToken)
     {
-        var scope = await ResolveScopeAsync(bearerToken, correlationId, allowTeamScope: true, cancellationToken)
+        var scope = await ResolveScopeAsync(bearerToken, correlationId, allowTeamScope: true, target, cancellationToken)
             .ConfigureAwait(false);
         if (!scope.IsSuccess)
             return Fail<IReadOnlyList<HighValueClientResponse>>(scope);
@@ -105,10 +111,11 @@ public sealed class AdviserInsightsService(
     public async Task<ServiceResult<IReadOnlyList<MissingAnnualReviewClientResponse>>> GetMyClientsMissingAnnualReviewAsync(
         string? bearerToken,
         string? correlationId,
+        AdviserTargetFilter? target,
         int pageSize,
         CancellationToken cancellationToken)
     {
-        var scope = await ResolveScopeAsync(bearerToken, correlationId, allowTeamScope: true, cancellationToken)
+        var scope = await ResolveScopeAsync(bearerToken, correlationId, allowTeamScope: true, target, cancellationToken)
             .ConfigureAwait(false);
         if (!scope.IsSuccess)
             return Fail<IReadOnlyList<MissingAnnualReviewClientResponse>>(scope);
@@ -121,8 +128,9 @@ public sealed class AdviserInsightsService(
         string? bearerToken,
         string? correlationId,
         bool allowTeamScope,
+        AdviserTargetFilter? target,
         CancellationToken cancellationToken)
-        => accessService.ResolveScopeAsync(bearerToken, correlationId, allowTeamScope, cancellationToken);
+        => accessService.ResolveScopeAsync(bearerToken, correlationId, allowTeamScope, target, cancellationToken);
 
     private static ServiceResult<T> Fail<T>(ServiceResult<AdviserDataScope> scope)
         => ServiceResult<T>.Fail(scope.StatusCode, scope.ErrorCode!, scope.ErrorMessage!, scope.ErrorDetail);

@@ -12,7 +12,7 @@ public sealed class AdviserInsightsFunction(AdviserInsightsService insights)
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "v1/me/adviser")] HttpRequestData request,
         CancellationToken cancellationToken)
         => await request.ToJsonAsync(
-            await insights.GetMyAdviserAsync(Auth(request), Correlation(request), cancellationToken).ConfigureAwait(false),
+            await insights.GetMyAdviserAsync(Auth(request), Correlation(request), Target(request), cancellationToken).ConfigureAwait(false),
             cancellationToken);
 
     [Function("AdviserInsights_GetMyTeamAdvisers")]
@@ -20,7 +20,7 @@ public sealed class AdviserInsightsFunction(AdviserInsightsService insights)
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "v1/me/team/advisers")] HttpRequestData request,
         CancellationToken cancellationToken)
         => await request.ToJsonAsync(
-            await insights.GetMyTeamAdvisersAsync(Auth(request), Correlation(request), cancellationToken).ConfigureAwait(false),
+            await insights.GetMyTeamAdvisersAsync(Auth(request), Correlation(request), Target(request), cancellationToken).ConfigureAwait(false),
             cancellationToken);
 
     [Function("AdviserInsights_GetMyClients")]
@@ -28,7 +28,7 @@ public sealed class AdviserInsightsFunction(AdviserInsightsService insights)
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "v1/me/clients")] HttpRequestData request,
         CancellationToken cancellationToken)
         => await request.ToJsonAsync(
-            await insights.GetMyClientsAsync(Auth(request), Correlation(request), request.QueryInt("pageSize", 25), cancellationToken).ConfigureAwait(false),
+            await insights.GetMyClientsAsync(Auth(request), Correlation(request), Target(request), request.QueryInt("pageSize", 25), cancellationToken).ConfigureAwait(false),
             cancellationToken);
 
     [Function("AdviserInsights_GetMyPolicies")]
@@ -36,7 +36,7 @@ public sealed class AdviserInsightsFunction(AdviserInsightsService insights)
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "v1/me/policies")] HttpRequestData request,
         CancellationToken cancellationToken)
         => await request.ToJsonAsync(
-            await insights.GetMyPoliciesAsync(Auth(request), Correlation(request), request.QueryInt("pageSize", 25), cancellationToken).ConfigureAwait(false),
+            await insights.GetMyPoliciesAsync(Auth(request), Correlation(request), Target(request), request.QueryInt("pageSize", 25), cancellationToken).ConfigureAwait(false),
             cancellationToken);
 
     [Function("AdviserInsights_GetMyAumSummary")]
@@ -44,7 +44,7 @@ public sealed class AdviserInsightsFunction(AdviserInsightsService insights)
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "v1/me/aum-summary")] HttpRequestData request,
         CancellationToken cancellationToken)
         => await request.ToJsonAsync(
-            await insights.GetMyAumSummaryAsync(Auth(request), Correlation(request), cancellationToken).ConfigureAwait(false),
+            await insights.GetMyAumSummaryAsync(Auth(request), Correlation(request), Target(request), cancellationToken).ConfigureAwait(false),
             cancellationToken);
 
     [Function("AdviserInsights_GetMyHighValueClients")]
@@ -52,7 +52,7 @@ public sealed class AdviserInsightsFunction(AdviserInsightsService insights)
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "v1/me/clients/highest-policy-value")] HttpRequestData request,
         CancellationToken cancellationToken)
         => await request.ToJsonAsync(
-            await insights.GetMyHighValueClientsAsync(Auth(request), Correlation(request), request.QueryInt("pageSize", 25), cancellationToken).ConfigureAwait(false),
+            await insights.GetMyHighValueClientsAsync(Auth(request), Correlation(request), Target(request), request.QueryInt("pageSize", 25), cancellationToken).ConfigureAwait(false),
             cancellationToken);
 
     [Function("AdviserInsights_GetMyClientsMissingAnnualReview")]
@@ -60,7 +60,7 @@ public sealed class AdviserInsightsFunction(AdviserInsightsService insights)
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "v1/me/clients/missing-annual-review")] HttpRequestData request,
         CancellationToken cancellationToken)
         => await request.ToJsonAsync(
-            await insights.GetMyClientsMissingAnnualReviewAsync(Auth(request), Correlation(request), request.QueryInt("pageSize", 25), cancellationToken).ConfigureAwait(false),
+            await insights.GetMyClientsMissingAnnualReviewAsync(Auth(request), Correlation(request), Target(request), request.QueryInt("pageSize", 25), cancellationToken).ConfigureAwait(false),
             cancellationToken);
 
     private static string? Auth(HttpRequestData request)
@@ -86,4 +86,17 @@ public sealed class AdviserInsightsFunction(AdviserInsightsService insights)
     }
 
     private static string? Correlation(HttpRequestData request) => request.Header("x-correlation-id");
+
+    private static AdviserTargetFilter? Target(HttpRequestData request)
+    {
+        var adviserId = request.Query("adviserId");
+        var adviserName = request.Query("adviserName");
+        var adviserEmail = request.Query("adviserEmail");
+
+        return string.IsNullOrWhiteSpace(adviserId) &&
+               string.IsNullOrWhiteSpace(adviserName) &&
+               string.IsNullOrWhiteSpace(adviserEmail)
+            ? null
+            : new AdviserTargetFilter(adviserId, adviserName, adviserEmail);
+    }
 }

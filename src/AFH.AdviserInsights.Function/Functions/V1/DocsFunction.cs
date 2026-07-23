@@ -49,13 +49,13 @@ public sealed class DocsFunction
         var paths = new Dictionary<string, object>
         {
             ["/api/health"] = Get("health", "Health", "Health check."),
-            ["/api/v1/me/adviser"] = Get("getMyAdviser", "Adviser", "Get the signed-in adviser profile."),
-            ["/api/v1/me/team/advisers"] = Get("getMyTeamAdvisers", "Adviser", "Get advisers managed by the signed-in manager."),
-            ["/api/v1/me/clients"] = Get("getMyClients", "Clients", "Get clients in the signed-in user's adviser scope.", hasPageSize: true),
-            ["/api/v1/me/policies"] = Get("getMyPolicies", "Policies", "Get policies in the signed-in user's adviser scope.", hasPageSize: true),
-            ["/api/v1/me/aum-summary"] = Get("getMyAumSummary", "AUM", "Get AUM summary in the signed-in user's adviser scope."),
-            ["/api/v1/me/clients/highest-policy-value"] = Get("getMyHighValueClients", "Clients", "Find clients with highest policy/AUM value.", hasPageSize: true),
-            ["/api/v1/me/clients/missing-annual-review"] = Get("getMyClientsMissingAnnualReview", "Clients", "Find clients without an annual policy review in the last 12 months.", hasPageSize: true)
+            ["/api/v1/me/adviser"] = Get("getMyAdviser", "Adviser", "Get the signed-in adviser profile, or a target adviser profile in the signed-in user's scope.", hasAdviserFilter: true),
+            ["/api/v1/me/team/advisers"] = Get("getMyTeamAdvisers", "Adviser", "Get advisers managed by the signed-in manager.", hasAdviserFilter: true),
+            ["/api/v1/me/clients"] = Get("getMyClients", "Clients", "Get clients in the signed-in user's adviser scope.", hasPageSize: true, hasAdviserFilter: true),
+            ["/api/v1/me/policies"] = Get("getMyPolicies", "Policies", "Get policies in the signed-in user's adviser scope.", hasPageSize: true, hasAdviserFilter: true),
+            ["/api/v1/me/aum-summary"] = Get("getMyAumSummary", "AUM", "Get AUM summary in the signed-in user's adviser scope.", hasAdviserFilter: true),
+            ["/api/v1/me/clients/highest-policy-value"] = Get("getMyHighValueClients", "Clients", "Find clients with highest policy/AUM value.", hasPageSize: true, hasAdviserFilter: true),
+            ["/api/v1/me/clients/missing-annual-review"] = Get("getMyClientsMissingAnnualReview", "Clients", "Find clients without an annual policy review in the last 12 months.", hasPageSize: true, hasAdviserFilter: true)
         };
 
         return new
@@ -83,7 +83,7 @@ public sealed class DocsFunction
         };
     }
 
-    private static object Get(string operationId, string tag, string summary, bool hasPageSize = false)
+    private static object Get(string operationId, string tag, string summary, bool hasPageSize = false, bool hasAdviserFilter = false)
     {
         var operation = new Dictionary<string, object?>
         {
@@ -99,21 +99,40 @@ public sealed class DocsFunction
             }
         };
 
+        var parameters = new List<object>();
+
         if (hasPageSize)
         {
-            operation["parameters"] = new[]
+            parameters.Add(new
             {
-                new
-                {
-                    name = "pageSize",
-                    @in = "query",
-                    required = false,
-                    schema = new { type = "integer", minimum = 1, maximum = 100 },
-                    description = "Maximum number of rows to return."
-                }
-            };
+                name = "pageSize",
+                @in = "query",
+                required = false,
+                schema = new { type = "integer", minimum = 1, maximum = 100 },
+                description = "Maximum number of rows to return."
+            });
         }
+
+        if (hasAdviserFilter)
+        {
+            parameters.Add(QueryString("adviserName", "Optional adviser name filter, for example Aaron or Daniel."));
+            parameters.Add(QueryString("adviserEmail", "Optional adviser email filter."));
+            parameters.Add(QueryString("adviserId", "Optional numeric adviser identifier filter."));
+        }
+
+        if (parameters.Count > 0)
+            operation["parameters"] = parameters;
 
         return new Dictionary<string, object?> { ["get"] = operation };
     }
+
+    private static object QueryString(string name, string description)
+        => new
+        {
+            name,
+            @in = "query",
+            required = false,
+            schema = new { type = "string" },
+            description
+        };
 }
