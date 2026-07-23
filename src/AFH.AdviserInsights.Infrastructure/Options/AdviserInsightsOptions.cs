@@ -14,6 +14,10 @@ public sealed class DownstreamIdentityOptions
     public string? BaseUrl { get; set; }
 
     public string? FunctionKey { get; set; }
+
+    public string? InternalToken { get; set; }
+
+    public string CurrentUserPath { get; set; } = "api/internal/identity/v1/me";
 }
 
 public sealed class SnowflakeOptions

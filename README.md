@@ -70,6 +70,8 @@ Configure with:
 
 ```bash
 AdviserInsights__Identity__BaseUrl=https://<identity-service>.azurewebsites.net
+AdviserInsights__Identity__InternalToken=<shared-internal-token>
+AdviserInsights__Identity__CurrentUserPath=api/internal/identity/v1/me
 AdviserInsights__Snowflake__ConnectionString=account=<account>;host=<account>.<region>.azure.snowflakecomputing.com;authenticator=snowflake_jwt;user=<user>;private_key=<private-key-pem-or-base64>;db=DIM_DB_DEV;schema=AFH;warehouse=<warehouse>;role=<role>
 ```
 

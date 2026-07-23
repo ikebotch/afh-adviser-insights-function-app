@@ -24,9 +24,18 @@ public sealed class IdentityClient(
             return null;
         }
 
-        using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(baseUri, "api/v1/me"));
-        if (!string.IsNullOrWhiteSpace(bearerToken))
+        var currentUserPath = string.IsNullOrWhiteSpace(identity.CurrentUserPath)
+            ? "api/internal/identity/v1/me"
+            : identity.CurrentUserPath.TrimStart('/');
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(baseUri, currentUserPath));
+        if (!string.IsNullOrWhiteSpace(identity.InternalToken))
+            request.Headers.TryAddWithoutValidation("Authorization", $"Bearer {identity.InternalToken}");
+        else if (!string.IsNullOrWhiteSpace(bearerToken))
             request.Headers.TryAddWithoutValidation("Authorization", bearerToken);
+
+        if (!string.IsNullOrWhiteSpace(bearerToken))
+            request.Headers.TryAddWithoutValidation("x-afh-user-token", bearerToken);
         if (!string.IsNullOrWhiteSpace(correlationId))
             request.Headers.TryAddWithoutValidation("x-correlation-id", correlationId);
         if (!string.IsNullOrWhiteSpace(identity.FunctionKey))
