@@ -311,8 +311,9 @@ public sealed class SnowflakeAdviserInsightsRepository(
         AdviserDataScope scope)
     {
         var email = scope.Email?.ToLower();
+        var adviserId = NumericIdentifierOrNull(scope.AdviserId);
         return query.Where(adviser =>
-            adviser.AdviserId == scope.AdviserId ||
+            (adviserId != null && adviser.AdviserId == adviserId) ||
             (adviser.EmailAddress != null && adviser.EmailAddress.ToLower() == email) ||
             adviser.Adviser == scope.ManagerName);
     }
@@ -325,13 +326,14 @@ public sealed class SnowflakeAdviserInsightsRepository(
             return query;
 
         var email = scope.Email?.ToLower();
+        var adviserId = NumericIdentifierOrNull(scope.AdviserId);
         return scope.IncludeTeam
             ? query.Where(row =>
                 row.Adviser.AdviserManager == scope.ManagerName ||
-                row.Adviser.AdviserId == scope.AdviserId ||
+                (adviserId != null && row.Adviser.AdviserId == adviserId) ||
                 (row.Adviser.EmailAddress != null && row.Adviser.EmailAddress.ToLower() == email))
             : query.Where(row =>
-                row.Adviser.AdviserId == scope.AdviserId ||
+                (adviserId != null && row.Adviser.AdviserId == adviserId) ||
                 (row.Adviser.EmailAddress != null && row.Adviser.EmailAddress.ToLower() == email) ||
                 row.Adviser.Adviser == scope.ManagerName);
     }
@@ -344,13 +346,14 @@ public sealed class SnowflakeAdviserInsightsRepository(
             return query;
 
         var email = scope.Email?.ToLower();
+        var adviserId = NumericIdentifierOrNull(scope.AdviserId);
         return scope.IncludeTeam
             ? query.Where(row =>
                 row.Adviser.AdviserManager == scope.ManagerName ||
-                row.Adviser.AdviserId == scope.AdviserId ||
+                (adviserId != null && row.Adviser.AdviserId == adviserId) ||
                 (row.Adviser.EmailAddress != null && row.Adviser.EmailAddress.ToLower() == email))
             : query.Where(row =>
-                row.Adviser.AdviserId == scope.AdviserId ||
+                (adviserId != null && row.Adviser.AdviserId == adviserId) ||
                 (row.Adviser.EmailAddress != null && row.Adviser.EmailAddress.ToLower() == email) ||
                 row.Adviser.Adviser == scope.ManagerName);
     }
@@ -363,16 +366,20 @@ public sealed class SnowflakeAdviserInsightsRepository(
             return query;
 
         var email = scope.Email?.ToLower();
+        var adviserId = NumericIdentifierOrNull(scope.AdviserId);
         return scope.IncludeTeam
             ? query.Where(row =>
                 row.Adviser.AdviserManager == scope.ManagerName ||
-                row.Adviser.AdviserId == scope.AdviserId ||
+                (adviserId != null && row.Adviser.AdviserId == adviserId) ||
                 (row.Adviser.EmailAddress != null && row.Adviser.EmailAddress.ToLower() == email))
             : query.Where(row =>
-                row.Adviser.AdviserId == scope.AdviserId ||
+                (adviserId != null && row.Adviser.AdviserId == adviserId) ||
                 (row.Adviser.EmailAddress != null && row.Adviser.EmailAddress.ToLower() == email) ||
                 row.Adviser.Adviser == scope.ManagerName);
     }
+
+    private static string? NumericIdentifierOrNull(string? value)
+        => long.TryParse(value, out _) ? value : null;
 
     private static DateOnly? ToDateOnly(DateTime? value)
         => value is null ? null : DateOnly.FromDateTime(value.Value);
