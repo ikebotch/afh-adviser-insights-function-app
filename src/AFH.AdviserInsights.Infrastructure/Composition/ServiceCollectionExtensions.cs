@@ -18,6 +18,7 @@ public static class ServiceCollectionExtensions
     {
         services.Configure<AdviserInsightsOptions>(configuration.GetSection(AdviserInsightsOptions.SectionName));
         services.AddSingleton(TimeProvider.System);
+        services.AddSingleton<IInternalServiceAuthenticator, InternalBearerServiceAuthenticator>();
         services.AddHttpClient<IIdentityClient, IdentityClient>();
         services.AddDbContextFactory<AdviserInsightsSnowflakeDbContext>((serviceProvider, options) =>
         {

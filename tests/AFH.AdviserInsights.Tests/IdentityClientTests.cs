@@ -38,6 +38,7 @@ public sealed class IdentityClientTests
                     InternalToken = "internal-secret"
                 }
             }),
+            new InternalBearerServiceAuthenticator(),
             NullLogger<IdentityClient>.Instance);
 
         var user = await client.GetCurrentUserAsync("Bearer user-token", "correlation-1", CancellationToken.None);
