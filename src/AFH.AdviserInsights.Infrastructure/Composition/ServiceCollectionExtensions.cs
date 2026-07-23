@@ -30,9 +30,29 @@ public static class ServiceCollectionExtensions
             if (string.IsNullOrWhiteSpace(snowflakeOptions.ConnectionString))
                 throw new InvalidOperationException("Missing AdviserInsights:Snowflake:ConnectionString configuration.");
 
-            options.UseSnowflake(snowflakeOptions.ConnectionString);
+            options.UseSnowflake(BuildSnowflakeConnectionString(snowflakeOptions));
         });
         services.AddScoped<IAdviserInsightsRepository, SnowflakeAdviserInsightsRepository>();
         return services;
+    }
+
+    private static string BuildSnowflakeConnectionString(SnowflakeOptions options)
+    {
+        var parts = options.ConnectionString!
+            .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .ToList();
+        var keys = parts
+            .Select(part => part.Split('=', 2))
+            .Where(pair => pair.Length == 2)
+            .Select(pair => pair[0].Trim())
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        if (!keys.Contains("db") && !keys.Contains("database") && !string.IsNullOrWhiteSpace(options.Database))
+            parts.Add($"db={options.Database.Trim()}");
+
+        if (!keys.Contains("schema") && !string.IsNullOrWhiteSpace(options.Schema))
+            parts.Add($"schema={options.Schema.Trim()}");
+
+        return string.Join(';', parts);
     }
 }

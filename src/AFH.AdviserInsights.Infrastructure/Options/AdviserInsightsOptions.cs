@@ -23,4 +23,8 @@ public sealed class DownstreamIdentityOptions
 public sealed class SnowflakeOptions
 {
     public string? ConnectionString { get; set; }
+
+    public string Database { get; set; } = "DIM_DB_DEV";
+
+    public string Schema { get; set; } = "AFH";
 }

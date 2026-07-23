@@ -72,10 +72,12 @@ Configure with:
 AdviserInsights__Identity__BaseUrl=https://<identity-service>.azurewebsites.net
 AdviserInsights__Identity__InternalToken=<shared-internal-token>
 AdviserInsights__Identity__CurrentUserPath=api/internal/identity/v1/me
-AdviserInsights__Snowflake__ConnectionString=account=<account>;host=<account>.<region>.azure.snowflakecomputing.com;authenticator=snowflake_jwt;user=<user>;private_key=<private-key-pem-or-base64>;db=DIM_DB_DEV;schema=AFH;warehouse=<warehouse>;role=<role>
+AdviserInsights__Snowflake__ConnectionString=account=<account>;host=<account>.<region>.azure.snowflakecomputing.com;authenticator=snowflake_jwt;user=<user>;private_key=<private-key-pem-or-base64>;warehouse=<warehouse>;role=<role>
+AdviserInsights__Snowflake__Database=DIM_DB_DEV
+AdviserInsights__Snowflake__Schema=AFH
 ```
 
-For key-pair authentication, pass the private key in the Snowflake EF connection string. In Azure, prefer Key Vault references for the connection string or private key value.
+For key-pair authentication, pass the private key in the Snowflake EF connection string. In Azure, prefer Key Vault references for the connection string or private key value. The service appends `db` and `schema` from configuration when the connection string does not already include them, so Snowflake sessions have a current database/schema before EF queries run.
 
 ## Phase 1 Notes
 
