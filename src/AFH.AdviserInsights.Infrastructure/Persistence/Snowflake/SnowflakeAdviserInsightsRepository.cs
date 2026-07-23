@@ -1,67 +1,55 @@
-using System.Globalization;
 using AFH.AdviserInsights.Application.Abstractions.Persistence;
 using AFH.AdviserInsights.Contract;
 using AFH.AdviserInsights.Domain.Access;
-using AFH.AdviserInsights.Infrastructure.Options;
-using Microsoft.Extensions.Options;
+using AFH.AdviserInsights.Infrastructure.Persistence.Snowflake.Entities;
+using Microsoft.EntityFrameworkCore;
 
 namespace AFH.AdviserInsights.Infrastructure.Persistence.Snowflake;
 
 public sealed class SnowflakeAdviserInsightsRepository(
-    ISnowflakeSqlClient snowflake,
-    IOptions<AdviserInsightsOptions> options) : IAdviserInsightsRepository
+    IDbContextFactory<AdviserInsightsSnowflakeDbContext> dbFactory) : IAdviserInsightsRepository
 {
     public async Task<AdviserProfileResponse?> GetAdviserProfileAsync(AdviserDataScope scope, CancellationToken cancellationToken)
     {
-        var rows = await snowflake.QueryAsync($"""
-            SELECT
-                ADVISER_ID,
-                ADVISER,
-                EMAIL_ADDRESS,
-                ADVISER_MANAGER,
-                REGION,
-                ADVISER_STATUS
-            FROM {Table("DIM_ADVISER")}
-            WHERE {AdviserIdentityFilter(scope, "ADVISER_ID", "EMAIL_ADDRESS", "ADVISER")}
-            LIMIT 1
-            """, cancellationToken).ConfigureAwait(false);
+        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
 
-        var row = rows.FirstOrDefault();
-        return row is null
-            ? null
-            : new AdviserProfileResponse(
-                Text(row, "ADVISER_ID") ?? string.Empty,
-                Text(row, "ADVISER") ?? string.Empty,
-                Text(row, "EMAIL_ADDRESS"),
-                Text(row, "ADVISER_MANAGER"),
-                Text(row, "REGION"),
-                Text(row, "ADVISER_STATUS"),
-                scope.AccessMode);
+        var query = ApplyAdviserIdentityFilter(db.Advisers.AsNoTracking(), scope);
+
+        return await query
+            .Select(adviser => new AdviserProfileResponse(
+                adviser.AdviserId ?? string.Empty,
+                adviser.Adviser ?? string.Empty,
+                adviser.EmailAddress,
+                adviser.AdviserManager,
+                adviser.Region,
+                adviser.AdviserStatus,
+                scope.AccessMode))
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false);
     }
 
     public async Task<IReadOnlyList<TeamAdviserResponse>> GetTeamAdvisersAsync(AdviserDataScope scope, CancellationToken cancellationToken)
     {
-        var rows = await snowflake.QueryAsync($"""
-            SELECT
-                ADVISER_ID,
-                ADVISER,
-                EMAIL_ADDRESS,
-                ADVISER_MANAGER,
-                REGION,
-                ADVISER_STATUS
-            FROM {Table("DIM_ADVISER")}
-            WHERE {TeamAdviserFilter(scope, "ADVISER_MANAGER")}
-            ORDER BY ADVISER
-            LIMIT 100
-            """, cancellationToken).ConfigureAwait(false);
+        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
 
-        return rows.Select(row => new TeamAdviserResponse(
-            Text(row, "ADVISER_ID") ?? string.Empty,
-            Text(row, "ADVISER") ?? string.Empty,
-            Text(row, "EMAIL_ADDRESS"),
-            Text(row, "ADVISER_MANAGER"),
-            Text(row, "REGION"),
-            Text(row, "ADVISER_STATUS"))).ToArray();
+        var query = db.Advisers.AsNoTracking();
+        if (!scope.IncludeAll)
+        {
+            query = query.Where(adviser => adviser.AdviserManager == scope.ManagerName);
+        }
+
+        return await query
+            .OrderBy(adviser => adviser.Adviser)
+            .Take(100)
+            .Select(adviser => new TeamAdviserResponse(
+                adviser.AdviserId ?? string.Empty,
+                adviser.Adviser ?? string.Empty,
+                adviser.EmailAddress,
+                adviser.AdviserManager,
+                adviser.Region,
+                adviser.AdviserStatus))
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
     }
 
     public async Task<IReadOnlyList<ClientSummaryResponse>> GetClientsAsync(
@@ -69,32 +57,51 @@ public sealed class SnowflakeAdviserInsightsRepository(
         int pageSize,
         CancellationToken cancellationToken)
     {
-        var rows = await snowflake.QueryAsync($"""
-            SELECT
-                c.CLIENT_ENTITY_ID AS CLIENT_ID,
-                c.ENTITYNAME AS CLIENT_NAME,
-                a.ADVISER_ID,
-                a.ADVISER AS ADVISER_NAME,
-                c.HOUSEHOLD,
-                SUM(COALESCE(f.ADJUSTED_VALUATION, f.VALUATION, 0)) AS AUM_VALUE
-            FROM {Table("DIM_CUSTOMER")} c
-            INNER JOIN {Table("FACT_CUSTOMER")} fc ON fc.ENTITY_SK = c.ENTITY_SK
-            INNER JOIN {Table("DIM_ADVISER")} a ON a.ADVISER_SK = fc.ADVISER_SK
-            LEFT JOIN {Table("DIM_HOUSEHOLD_X_CUST")} hc ON hc.ENTITY_SK = c.ENTITY_SK
-            LEFT JOIN {Table("FACT_AUM")} f ON f.HOUSEHOLD_SK = hc.HOUSEHOLD_SK
-            WHERE {ScopeFilter(scope, "a")}
-            GROUP BY c.CLIENT_ENTITY_ID, c.ENTITYNAME, a.ADVISER_ID, a.ADVISER, c.HOUSEHOLD
-            ORDER BY AUM_VALUE DESC, CLIENT_NAME
-            LIMIT {pageSize}
-            """, cancellationToken).ConfigureAwait(false);
+        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+
+        var query =
+            from customer in db.Customers.AsNoTracking()
+            join customerFact in db.CustomerFacts.AsNoTracking() on customer.EntitySk equals customerFact.EntitySk
+            join adviser in db.Advisers.AsNoTracking() on customerFact.AdviserSk equals adviser.AdviserSk
+            join householdCustomer in db.HouseholdCustomers.AsNoTracking() on customer.EntitySk equals householdCustomer.EntitySk into householdCustomers
+            from householdCustomer in householdCustomers.DefaultIfEmpty()
+            join aumFact in db.AumFacts.AsNoTracking() on householdCustomer.HouseholdSk equals aumFact.HouseholdSk into aumFacts
+            from aumFact in aumFacts.DefaultIfEmpty()
+            select new AdviserClientAumRow(customer, adviser, aumFact);
+
+        query = ApplyScopeFilter(query, scope);
+
+        var rows = await query
+            .GroupBy(row => new
+            {
+                row.Customer.ClientEntityId,
+                row.Customer.EntityName,
+                row.Adviser.AdviserId,
+                row.Adviser.Adviser,
+                row.Customer.Household
+            })
+            .Select(group => new
+            {
+                group.Key.ClientEntityId,
+                ClientName = group.Key.EntityName,
+                group.Key.AdviserId,
+                AdviserName = group.Key.Adviser,
+                group.Key.Household,
+                AumValue = group.Sum(row => row.AumFact == null ? 0m : row.AumFact.AdjustedValuation ?? row.AumFact.Valuation ?? 0m)
+            })
+            .OrderByDescending(row => row.AumValue)
+            .ThenBy(row => row.ClientName)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
 
         return rows.Select(row => new ClientSummaryResponse(
-            Text(row, "CLIENT_ID") ?? string.Empty,
-            Text(row, "CLIENT_NAME"),
-            Text(row, "ADVISER_ID"),
-            Text(row, "ADVISER_NAME"),
-            Text(row, "HOUSEHOLD"),
-            Number(row, "AUM_VALUE"))).ToArray();
+            row.ClientEntityId ?? string.Empty,
+            row.ClientName,
+            row.AdviserId,
+            row.AdviserName,
+            row.Household,
+            row.AumValue)).ToArray();
     }
 
     public async Task<IReadOnlyList<PolicySummaryResponse>> GetPoliciesAsync(
@@ -102,65 +109,98 @@ public sealed class SnowflakeAdviserInsightsRepository(
         int pageSize,
         CancellationToken cancellationToken)
     {
-        var rows = await snowflake.QueryAsync($"""
-            SELECT
-                p.XPLAN_POLICY_SK AS POLICY_ID,
-                c.CLIENT_ENTITY_ID AS CLIENT_ID,
-                c.ENTITYNAME AS CLIENT_NAME,
-                a.ADVISER_ID,
-                a.ADVISER AS ADVISER_NAME,
-                COALESCE(ps.REPORT_NAME, p.REPORT_NAME) AS REPORT_NAME,
-                ps.POLICY_START_DATE,
-                ps.POLICY_SERVICE_CLOSE_DATE,
-                SUM(COALESCE(f.ADJUSTED_VALUATION, f.VALUATION, 0)) AS AUM_VALUE
-            FROM {Table("DIM_CUSTOMER")} c
-            INNER JOIN {Table("FACT_CUSTOMER")} fc ON fc.ENTITY_SK = c.ENTITY_SK
-            INNER JOIN {Table("DIM_ADVISER")} a ON a.ADVISER_SK = fc.ADVISER_SK
-            INNER JOIN {Table("DIM_CUSTOMER_X_POLICY")} cp ON cp.ENTITY_SK = c.ENTITY_SK
-            INNER JOIN {Table("DIM_XPLAN_POLICY")} p ON p.XPLAN_POLICY_SK = cp.XPLAN_POLICY_SK
-            LEFT JOIN {Table("DIM_POLICY_SERVICE_START_END_DATE")} ps ON ps.XPLAN_POLICY_SK = p.XPLAN_POLICY_SK
-            LEFT JOIN {Table("FACT_AUM")} f ON f.XPLAN_POLICY_SK = p.XPLAN_POLICY_SK
-            WHERE {ScopeFilter(scope, "a")}
-            GROUP BY p.XPLAN_POLICY_SK, c.CLIENT_ENTITY_ID, c.ENTITYNAME, a.ADVISER_ID, a.ADVISER, COALESCE(ps.REPORT_NAME, p.REPORT_NAME), ps.POLICY_START_DATE, ps.POLICY_SERVICE_CLOSE_DATE
-            ORDER BY AUM_VALUE DESC, CLIENT_NAME
-            LIMIT {pageSize}
-            """, cancellationToken).ConfigureAwait(false);
+        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+
+        var query =
+            from customer in db.Customers.AsNoTracking()
+            join customerFact in db.CustomerFacts.AsNoTracking() on customer.EntitySk equals customerFact.EntitySk
+            join adviser in db.Advisers.AsNoTracking() on customerFact.AdviserSk equals adviser.AdviserSk
+            join customerPolicy in db.CustomerPolicies.AsNoTracking() on customer.EntitySk equals customerPolicy.EntitySk
+            join policy in db.XplanPolicies.AsNoTracking() on customerPolicy.XplanPolicySk equals policy.XplanPolicySk
+            join servicePeriod in db.PolicyServicePeriods.AsNoTracking() on policy.XplanPolicySk equals servicePeriod.XplanPolicySk into servicePeriods
+            from servicePeriod in servicePeriods.DefaultIfEmpty()
+            join aumFact in db.AumFacts.AsNoTracking() on policy.XplanPolicySk equals aumFact.XplanPolicySk into aumFacts
+            from aumFact in aumFacts.DefaultIfEmpty()
+            select new AdviserPolicyAumRow(customer, adviser, policy, servicePeriod, aumFact);
+
+        query = ApplyScopeFilter(query, scope);
+
+        var rows = await query
+            .GroupBy(row => new
+            {
+                row.Policy.XplanPolicySk,
+                row.Customer.ClientEntityId,
+                row.Customer.EntityName,
+                row.Adviser.AdviserId,
+                row.Adviser.Adviser,
+                ReportName = row.ServicePeriod == null ? row.Policy.ReportName : row.ServicePeriod.ReportName ?? row.Policy.ReportName,
+                PolicyStartDate = row.ServicePeriod == null ? null : row.ServicePeriod.PolicyStartDate,
+                PolicyServiceCloseDate = row.ServicePeriod == null ? null : row.ServicePeriod.PolicyServiceCloseDate
+            })
+            .Select(group => new
+            {
+                PolicyId = group.Key.XplanPolicySk,
+                group.Key.ClientEntityId,
+                ClientName = group.Key.EntityName,
+                group.Key.AdviserId,
+                AdviserName = group.Key.Adviser,
+                group.Key.ReportName,
+                group.Key.PolicyStartDate,
+                group.Key.PolicyServiceCloseDate,
+                AumValue = group.Sum(row => row.AumFact == null ? 0m : row.AumFact.AdjustedValuation ?? row.AumFact.Valuation ?? 0m)
+            })
+            .OrderByDescending(row => row.AumValue)
+            .ThenBy(row => row.ClientName)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
 
         return rows.Select(row => new PolicySummaryResponse(
-            Text(row, "POLICY_ID") ?? string.Empty,
-            Text(row, "CLIENT_ID"),
-            Text(row, "CLIENT_NAME"),
-            Text(row, "ADVISER_ID"),
-            Text(row, "ADVISER_NAME"),
-            Text(row, "REPORT_NAME"),
-            Date(row, "POLICY_START_DATE"),
-            Date(row, "POLICY_SERVICE_CLOSE_DATE"),
-            Number(row, "AUM_VALUE"))).ToArray();
+            row.PolicyId ?? string.Empty,
+            row.ClientEntityId,
+            row.ClientName,
+            row.AdviserId,
+            row.AdviserName,
+            row.ReportName,
+            ToDateOnly(row.PolicyStartDate),
+            ToDateOnly(row.PolicyServiceCloseDate),
+            row.AumValue)).ToArray();
     }
 
     public async Task<AumSummaryResponse> GetAumSummaryAsync(AdviserDataScope scope, CancellationToken cancellationToken)
     {
-        var rows = await snowflake.QueryAsync($"""
-            SELECT
-                COUNT(DISTINCT a.ADVISER_ID) AS ADVISER_COUNT,
-                COUNT(DISTINCT c.CLIENT_ENTITY_ID) AS CLIENT_COUNT,
-                COUNT(DISTINCT f.XPLAN_POLICY_SK) AS POLICY_COUNT,
-                SUM(COALESCE(f.ADJUSTED_VALUATION, f.VALUATION, 0)) AS TOTAL_AUM
-            FROM {Table("DIM_CUSTOMER")} c
-            INNER JOIN {Table("FACT_CUSTOMER")} fc ON fc.ENTITY_SK = c.ENTITY_SK
-            INNER JOIN {Table("DIM_ADVISER")} a ON a.ADVISER_SK = fc.ADVISER_SK
-            LEFT JOIN {Table("DIM_HOUSEHOLD_X_CUST")} hc ON hc.ENTITY_SK = c.ENTITY_SK
-            LEFT JOIN {Table("FACT_AUM")} f ON f.HOUSEHOLD_SK = hc.HOUSEHOLD_SK
-            WHERE {ScopeFilter(scope, "a")}
-            """, cancellationToken).ConfigureAwait(false);
+        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
 
-        var row = rows.FirstOrDefault() ?? new Dictionary<string, object?>();
+        var query =
+            from customer in db.Customers.AsNoTracking()
+            join customerFact in db.CustomerFacts.AsNoTracking() on customer.EntitySk equals customerFact.EntitySk
+            join adviser in db.Advisers.AsNoTracking() on customerFact.AdviserSk equals adviser.AdviserSk
+            join householdCustomer in db.HouseholdCustomers.AsNoTracking() on customer.EntitySk equals householdCustomer.EntitySk into householdCustomers
+            from householdCustomer in householdCustomers.DefaultIfEmpty()
+            join aumFact in db.AumFacts.AsNoTracking() on householdCustomer.HouseholdSk equals aumFact.HouseholdSk into aumFacts
+            from aumFact in aumFacts.DefaultIfEmpty()
+            select new AdviserClientAumRow(customer, adviser, aumFact);
+
+        query = ApplyScopeFilter(query, scope);
+
+        var summary = await query
+            .GroupBy(_ => 1)
+            .Select(group => new
+            {
+                AdviserCount = group.Select(row => row.Adviser.AdviserId).Distinct().Count(),
+                ClientCount = group.Select(row => row.Customer.ClientEntityId).Distinct().Count(),
+                PolicyCount = group.Select(row => row.AumFact == null ? null : row.AumFact.XplanPolicySk).Distinct().Count(),
+                TotalAum = group.Sum(row => row.AumFact == null ? 0m : row.AumFact.AdjustedValuation ?? row.AumFact.Valuation ?? 0m)
+            })
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false);
+
         return new AumSummaryResponse(
             scope.AccessMode,
-            (int)(Number(row, "ADVISER_COUNT") ?? 0),
-            (int)(Number(row, "CLIENT_COUNT") ?? 0),
-            (int)(Number(row, "POLICY_COUNT") ?? 0),
-            Number(row, "TOTAL_AUM") ?? 0);
+            summary?.AdviserCount ?? 0,
+            summary?.ClientCount ?? 0,
+            summary?.PolicyCount ?? 0,
+            summary?.TotalAum ?? 0m);
     }
 
     public async Task<IReadOnlyList<HighValueClientResponse>> GetHighValueClientsAsync(
@@ -168,32 +208,49 @@ public sealed class SnowflakeAdviserInsightsRepository(
         int pageSize,
         CancellationToken cancellationToken)
     {
-        var rows = await snowflake.QueryAsync($"""
-            SELECT
-                c.CLIENT_ENTITY_ID AS CLIENT_ID,
-                c.ENTITYNAME AS CLIENT_NAME,
-                a.ADVISER_ID,
-                a.ADVISER AS ADVISER_NAME,
-                SUM(COALESCE(f.ADJUSTED_VALUATION, f.VALUATION, 0)) AS TOTAL_POLICY_VALUE,
-                COUNT(DISTINCT f.XPLAN_POLICY_SK) AS POLICY_COUNT
-            FROM {Table("DIM_CUSTOMER")} c
-            INNER JOIN {Table("FACT_CUSTOMER")} fc ON fc.ENTITY_SK = c.ENTITY_SK
-            INNER JOIN {Table("DIM_ADVISER")} a ON a.ADVISER_SK = fc.ADVISER_SK
-            LEFT JOIN {Table("DIM_HOUSEHOLD_X_CUST")} hc ON hc.ENTITY_SK = c.ENTITY_SK
-            LEFT JOIN {Table("FACT_AUM")} f ON f.HOUSEHOLD_SK = hc.HOUSEHOLD_SK
-            WHERE {ScopeFilter(scope, "a")}
-            GROUP BY c.CLIENT_ENTITY_ID, c.ENTITYNAME, a.ADVISER_ID, a.ADVISER
-            ORDER BY TOTAL_POLICY_VALUE DESC
-            LIMIT {pageSize}
-            """, cancellationToken).ConfigureAwait(false);
+        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+
+        var query =
+            from customer in db.Customers.AsNoTracking()
+            join customerFact in db.CustomerFacts.AsNoTracking() on customer.EntitySk equals customerFact.EntitySk
+            join adviser in db.Advisers.AsNoTracking() on customerFact.AdviserSk equals adviser.AdviserSk
+            join householdCustomer in db.HouseholdCustomers.AsNoTracking() on customer.EntitySk equals householdCustomer.EntitySk into householdCustomers
+            from householdCustomer in householdCustomers.DefaultIfEmpty()
+            join aumFact in db.AumFacts.AsNoTracking() on householdCustomer.HouseholdSk equals aumFact.HouseholdSk into aumFacts
+            from aumFact in aumFacts.DefaultIfEmpty()
+            select new AdviserClientAumRow(customer, adviser, aumFact);
+
+        query = ApplyScopeFilter(query, scope);
+
+        var rows = await query
+            .GroupBy(row => new
+            {
+                row.Customer.ClientEntityId,
+                row.Customer.EntityName,
+                row.Adviser.AdviserId,
+                row.Adviser.Adviser
+            })
+            .Select(group => new
+            {
+                group.Key.ClientEntityId,
+                ClientName = group.Key.EntityName,
+                group.Key.AdviserId,
+                AdviserName = group.Key.Adviser,
+                TotalPolicyValue = group.Sum(row => row.AumFact == null ? 0m : row.AumFact.AdjustedValuation ?? row.AumFact.Valuation ?? 0m),
+                PolicyCount = group.Select(row => row.AumFact == null ? null : row.AumFact.XplanPolicySk).Distinct().Count()
+            })
+            .OrderByDescending(row => row.TotalPolicyValue)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
 
         return rows.Select(row => new HighValueClientResponse(
-            Text(row, "CLIENT_ID") ?? string.Empty,
-            Text(row, "CLIENT_NAME"),
-            Text(row, "ADVISER_ID"),
-            Text(row, "ADVISER_NAME"),
-            Number(row, "TOTAL_POLICY_VALUE") ?? 0,
-            (int)(Number(row, "POLICY_COUNT") ?? 0))).ToArray();
+            row.ClientEntityId ?? string.Empty,
+            row.ClientName,
+            row.AdviserId,
+            row.AdviserName,
+            row.TotalPolicyValue,
+            row.PolicyCount)).ToArray();
     }
 
     public async Task<IReadOnlyList<MissingAnnualReviewClientResponse>> GetClientsMissingAnnualReviewAsync(
@@ -201,76 +258,140 @@ public sealed class SnowflakeAdviserInsightsRepository(
         int pageSize,
         CancellationToken cancellationToken)
     {
-        var rows = await snowflake.QueryAsync($"""
-            SELECT
-                c.CLIENT_ENTITY_ID AS CLIENT_ID,
-                c.ENTITYNAME AS CLIENT_NAME,
-                a.ADVISER_ID,
-                a.ADVISER AS ADVISER_NAME,
-                MAX(ps.POLICY_SERVICE_CLOSE_DATE) AS LAST_POLICY_SERVICE_DATE,
-                COUNT(DISTINCT p.XPLAN_POLICY_SK) AS ACTIVE_POLICY_COUNT
-            FROM {Table("DIM_CUSTOMER")} c
-            INNER JOIN {Table("FACT_CUSTOMER")} fc ON fc.ENTITY_SK = c.ENTITY_SK
-            INNER JOIN {Table("DIM_ADVISER")} a ON a.ADVISER_SK = fc.ADVISER_SK
-            INNER JOIN {Table("DIM_CUSTOMER_X_POLICY")} cp ON cp.ENTITY_SK = c.ENTITY_SK
-            INNER JOIN {Table("DIM_XPLAN_POLICY")} p ON p.XPLAN_POLICY_SK = cp.XPLAN_POLICY_SK
-            LEFT JOIN {Table("DIM_POLICY_SERVICE_START_END_DATE")} ps ON ps.XPLAN_POLICY_SK = p.XPLAN_POLICY_SK
-            WHERE {ScopeFilter(scope, "a")}
-            GROUP BY c.CLIENT_ENTITY_ID, c.ENTITYNAME, a.ADVISER_ID, a.ADVISER
-            HAVING MAX(ps.POLICY_SERVICE_CLOSE_DATE) IS NULL
-                OR MAX(ps.POLICY_SERVICE_CLOSE_DATE) < DATEADD(year, -1, CURRENT_DATE())
-            ORDER BY LAST_POLICY_SERVICE_DATE NULLS FIRST, CLIENT_NAME
-            LIMIT {pageSize}
-            """, cancellationToken).ConfigureAwait(false);
+        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+
+        var query =
+            from customer in db.Customers.AsNoTracking()
+            join customerFact in db.CustomerFacts.AsNoTracking() on customer.EntitySk equals customerFact.EntitySk
+            join adviser in db.Advisers.AsNoTracking() on customerFact.AdviserSk equals adviser.AdviserSk
+            join customerPolicy in db.CustomerPolicies.AsNoTracking() on customer.EntitySk equals customerPolicy.EntitySk
+            join policy in db.XplanPolicies.AsNoTracking() on customerPolicy.XplanPolicySk equals policy.XplanPolicySk
+            join servicePeriod in db.PolicyServicePeriods.AsNoTracking() on policy.XplanPolicySk equals servicePeriod.XplanPolicySk into servicePeriods
+            from servicePeriod in servicePeriods.DefaultIfEmpty()
+            select new AdviserPolicyServiceRow(customer, adviser, policy, servicePeriod);
+
+        query = ApplyScopeFilter(query, scope);
+
+        var cutoff = DateTime.UtcNow.Date.AddYears(-1);
+        var rows = await query
+            .GroupBy(row => new
+            {
+                row.Customer.ClientEntityId,
+                row.Customer.EntityName,
+                row.Adviser.AdviserId,
+                row.Adviser.Adviser
+            })
+            .Select(group => new
+            {
+                group.Key.ClientEntityId,
+                ClientName = group.Key.EntityName,
+                group.Key.AdviserId,
+                AdviserName = group.Key.Adviser,
+                LastPolicyServiceDate = group.Max(row => row.ServicePeriod == null ? null : row.ServicePeriod.PolicyServiceCloseDate),
+                ActivePolicyCount = group.Select(row => row.Policy.XplanPolicySk).Distinct().Count()
+            })
+            .Where(row => row.LastPolicyServiceDate == null || row.LastPolicyServiceDate < cutoff)
+            .OrderBy(row => row.LastPolicyServiceDate)
+            .ThenBy(row => row.ClientName)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
 
         return rows.Select(row => new MissingAnnualReviewClientResponse(
-            Text(row, "CLIENT_ID") ?? string.Empty,
-            Text(row, "CLIENT_NAME"),
-            Text(row, "ADVISER_ID"),
-            Text(row, "ADVISER_NAME"),
-            Date(row, "LAST_POLICY_SERVICE_DATE"),
-            (int)(Number(row, "ACTIVE_POLICY_COUNT") ?? 0))).ToArray();
+            row.ClientEntityId ?? string.Empty,
+            row.ClientName,
+            row.AdviserId,
+            row.AdviserName,
+            ToDateOnly(row.LastPolicyServiceDate),
+            row.ActivePolicyCount)).ToArray();
     }
 
-    private string Table(string tableName)
+    private static IQueryable<DimAdviserEntity> ApplyAdviserIdentityFilter(
+        IQueryable<DimAdviserEntity> query,
+        AdviserDataScope scope)
     {
-        var snowflake = options.Value.Snowflake;
-        return $"{Identifier(snowflake.Database)}.{Identifier(snowflake.Schema)}.{Identifier(tableName)}";
+        var email = scope.Email?.ToLower();
+        return query.Where(adviser =>
+            adviser.AdviserId == scope.AdviserId ||
+            (adviser.EmailAddress != null && adviser.EmailAddress.ToLower() == email) ||
+            adviser.Adviser == scope.ManagerName);
     }
 
-    private static string ScopeFilter(AdviserDataScope scope, string adviserAlias)
+    private static IQueryable<AdviserClientAumRow> ApplyScopeFilter(
+        IQueryable<AdviserClientAumRow> query,
+        AdviserDataScope scope)
     {
         if (scope.IncludeAll)
-            return "1 = 1";
+            return query;
 
-        if (scope.IncludeTeam)
-            return $"({adviserAlias}.ADVISER_MANAGER = {Sql(scope.ManagerName)} OR {adviserAlias}.ADVISER_ID = {Sql(scope.AdviserId)} OR LOWER({adviserAlias}.EMAIL_ADDRESS) = LOWER({Sql(scope.Email)}))";
-
-        return AdviserIdentityFilter(scope, $"{adviserAlias}.ADVISER_ID", $"{adviserAlias}.EMAIL_ADDRESS", $"{adviserAlias}.ADVISER");
+        var email = scope.Email?.ToLower();
+        return scope.IncludeTeam
+            ? query.Where(row =>
+                row.Adviser.AdviserManager == scope.ManagerName ||
+                row.Adviser.AdviserId == scope.AdviserId ||
+                (row.Adviser.EmailAddress != null && row.Adviser.EmailAddress.ToLower() == email))
+            : query.Where(row =>
+                row.Adviser.AdviserId == scope.AdviserId ||
+                (row.Adviser.EmailAddress != null && row.Adviser.EmailAddress.ToLower() == email) ||
+                row.Adviser.Adviser == scope.ManagerName);
     }
 
-    private static string TeamAdviserFilter(AdviserDataScope scope, string managerColumn)
-        => scope.IncludeAll
-            ? "1 = 1"
-            : $"{managerColumn} = {Sql(scope.ManagerName)}";
+    private static IQueryable<AdviserPolicyAumRow> ApplyScopeFilter(
+        IQueryable<AdviserPolicyAumRow> query,
+        AdviserDataScope scope)
+    {
+        if (scope.IncludeAll)
+            return query;
 
-    private static string AdviserIdentityFilter(AdviserDataScope scope, string adviserIdColumn, string emailColumn, string adviserNameColumn)
-        => $"({adviserIdColumn} = {Sql(scope.AdviserId)} OR LOWER({emailColumn}) = LOWER({Sql(scope.Email)}) OR {adviserNameColumn} = {Sql(scope.ManagerName)})";
+        var email = scope.Email?.ToLower();
+        return scope.IncludeTeam
+            ? query.Where(row =>
+                row.Adviser.AdviserManager == scope.ManagerName ||
+                row.Adviser.AdviserId == scope.AdviserId ||
+                (row.Adviser.EmailAddress != null && row.Adviser.EmailAddress.ToLower() == email))
+            : query.Where(row =>
+                row.Adviser.AdviserId == scope.AdviserId ||
+                (row.Adviser.EmailAddress != null && row.Adviser.EmailAddress.ToLower() == email) ||
+                row.Adviser.Adviser == scope.ManagerName);
+    }
 
-    private static string Identifier(string value) => "\"" + value.Replace("\"", "\"\"", StringComparison.Ordinal) + "\"";
+    private static IQueryable<AdviserPolicyServiceRow> ApplyScopeFilter(
+        IQueryable<AdviserPolicyServiceRow> query,
+        AdviserDataScope scope)
+    {
+        if (scope.IncludeAll)
+            return query;
 
-    private static string Sql(string? value) => value is null ? "NULL" : "'" + value.Replace("'", "''", StringComparison.Ordinal) + "'";
+        var email = scope.Email?.ToLower();
+        return scope.IncludeTeam
+            ? query.Where(row =>
+                row.Adviser.AdviserManager == scope.ManagerName ||
+                row.Adviser.AdviserId == scope.AdviserId ||
+                (row.Adviser.EmailAddress != null && row.Adviser.EmailAddress.ToLower() == email))
+            : query.Where(row =>
+                row.Adviser.AdviserId == scope.AdviserId ||
+                (row.Adviser.EmailAddress != null && row.Adviser.EmailAddress.ToLower() == email) ||
+                row.Adviser.Adviser == scope.ManagerName);
+    }
 
-    private static string? Text(IReadOnlyDictionary<string, object?> row, string name)
-        => row.TryGetValue(name, out var value) ? Convert.ToString(value, CultureInfo.InvariantCulture) : null;
+    private static DateOnly? ToDateOnly(DateTime? value)
+        => value is null ? null : DateOnly.FromDateTime(value.Value);
 
-    private static decimal? Number(IReadOnlyDictionary<string, object?> row, string name)
-        => row.TryGetValue(name, out var value) && decimal.TryParse(Convert.ToString(value, CultureInfo.InvariantCulture), NumberStyles.Any, CultureInfo.InvariantCulture, out var parsed)
-            ? parsed
-            : null;
+    private sealed record AdviserClientAumRow(
+        DimCustomerEntity Customer,
+        DimAdviserEntity Adviser,
+        FactAumEntity? AumFact);
 
-    private static DateOnly? Date(IReadOnlyDictionary<string, object?> row, string name)
-        => row.TryGetValue(name, out var value) && DateOnly.TryParse(Convert.ToString(value, CultureInfo.InvariantCulture), CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed)
-            ? parsed
-            : null;
+    private sealed record AdviserPolicyAumRow(
+        DimCustomerEntity Customer,
+        DimAdviserEntity Adviser,
+        DimXplanPolicyEntity Policy,
+        DimPolicyServicePeriodEntity? ServicePeriod,
+        FactAumEntity? AumFact);
+
+    private sealed record AdviserPolicyServiceRow(
+        DimCustomerEntity Customer,
+        DimAdviserEntity Adviser,
+        DimXplanPolicyEntity Policy,
+        DimPolicyServicePeriodEntity? ServicePeriod);
 }

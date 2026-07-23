@@ -11,7 +11,7 @@ Copilot/MCP or API caller
  -> Adviser Insights API
  -> Identity/RBAC current user
  -> adviser or manager scope
- -> Snowflake adviser/client/policy/AUM queries
+ -> Snowflake EF Core adviser/client/policy/AUM queries
 ```
 
 ## Endpoints
@@ -51,7 +51,7 @@ Aum.Read.All  -> unrestricted AUM scope for finance/admin users
 
 ## Snowflake
 
-This service intentionally does not use EF Core for Snowflake. Booking uses EF Core because it owns an operational SQL Server persistence store. Adviser Insights is a read-only analytics service over Snowflake, so the persistence adapter lives under `AFH.AdviserInsights.Infrastructure/Persistence/Snowflake` and implements the application repository contract using the Snowflake SQL API.
+This service uses the same Snowflake EF Core approach as the Lead/Client Integration service. The persistence adapter lives under `AFH.AdviserInsights.Infrastructure/Persistence/Snowflake`, maps the dimensional tables as keyless read-only EF entities, and implements the application repository contract with LINQ queries over `AdviserInsightsSnowflakeDbContext`.
 
 The Phase 1 queries use these Snowflake tables:
 
@@ -59,35 +59,21 @@ The Phase 1 queries use these Snowflake tables:
 DIM_ADVISER
 DIM_CUSTOMER
 DIM_CUSTOMER_X_POLICY
+DIM_HOUSEHOLD_X_CUST
 DIM_XPLAN_POLICY
 DIM_POLICY_SERVICE_START_END_DATE
 FACT_AUM
+FACT_CUSTOMER
 ```
 
 Configure with:
 
 ```bash
 AdviserInsights__Identity__BaseUrl=https://<identity-service>.azurewebsites.net
-AdviserInsights__Snowflake__ConnectionString=account=<account>;host=<account>.<region>.azure.snowflakecomputing.com;authenticator=snowflake_jwt;user=<user>;private_key=<private-key-pem-or-base64>
-AdviserInsights__Snowflake__Warehouse=<warehouse>
-AdviserInsights__Snowflake__Database=DIM_DB_DEV
-AdviserInsights__Snowflake__Schema=AFH
-AdviserInsights__Snowflake__Role=<role>
+AdviserInsights__Snowflake__ConnectionString=account=<account>;host=<account>.<region>.azure.snowflakecomputing.com;authenticator=snowflake_jwt;user=<user>;private_key=<private-key-pem-or-base64>;db=DIM_DB_DEV;schema=AFH;warehouse=<warehouse>;role=<role>
 ```
 
-For key-pair authentication, the service generates the Snowflake JWT and calls the Snowflake SQL API with `X-Snowflake-Authorization-Token-Type: KEYPAIR_JWT`.
-
-You can also configure the same values separately:
-
-```bash
-AdviserInsights__Snowflake__Account=<account>
-AdviserInsights__Snowflake__Host=<account>.<region>.azure.snowflakecomputing.com
-AdviserInsights__Snowflake__Authenticator=snowflake_jwt
-AdviserInsights__Snowflake__User=<user>
-AdviserInsights__Snowflake__PrivateKey=<private-key-pem-or-base64>
-```
-
-Use `AdviserInsights__Snowflake__PrivateKeyFile` for local development if you do not want the private key inline. In Azure, prefer Key Vault references for the private key value.
+For key-pair authentication, pass the private key in the Snowflake EF connection string. In Azure, prefer Key Vault references for the connection string or private key value.
 
 ## Phase 1 Notes
 
