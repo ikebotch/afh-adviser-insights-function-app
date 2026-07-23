@@ -65,10 +65,24 @@ public sealed class AdviserInsightsFunction(AdviserInsightsService insights)
 
     private static string? Auth(HttpRequestData request)
     {
-        var authHeader = request.Header("Authorization")?.Trim() ?? string.Empty;
-        return authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)
-            ? authHeader["Bearer ".Length..].Trim()
-            : null;
+        if (!request.Headers.TryGetValues("Authorization", out var authHeaders))
+            return null;
+
+        foreach (var authHeader in authHeaders)
+        {
+            var parts = authHeader.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            foreach (var part in parts)
+            {
+                if (!part.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                var token = part["Bearer ".Length..].Trim();
+                if (!string.IsNullOrWhiteSpace(token))
+                    return token;
+            }
+        }
+
+        return null;
     }
 
     private static string? Correlation(HttpRequestData request) => request.Header("x-correlation-id");
