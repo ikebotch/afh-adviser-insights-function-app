@@ -29,10 +29,13 @@ public sealed class IdentityClient(
             : identity.CurrentUserPath.TrimStart('/');
 
         using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(baseUri, currentUserPath));
-        if (!string.IsNullOrWhiteSpace(identity.InternalToken))
-            request.Headers.TryAddWithoutValidation("Authorization", $"Bearer {identity.InternalToken}");
-        else if (!string.IsNullOrWhiteSpace(bearerToken))
-            request.Headers.TryAddWithoutValidation("Authorization", bearerToken);
+        if (string.IsNullOrWhiteSpace(identity.InternalToken))
+        {
+            logger.LogWarning("Identity internal token is not configured.");
+            return null;
+        }
+
+        request.Headers.TryAddWithoutValidation("Authorization", $"Bearer {identity.InternalToken}");
 
         if (!string.IsNullOrWhiteSpace(bearerToken))
             request.Headers.TryAddWithoutValidation("x-afh-user-token", bearerToken);
