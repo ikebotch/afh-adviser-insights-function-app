@@ -41,14 +41,14 @@ public sealed class IdentityClientTests
             new InternalBearerServiceAuthenticator(),
             NullLogger<IdentityClient>.Instance);
 
-        var user = await client.GetCurrentUserAsync("Bearer user-token", "correlation-1", CancellationToken.None);
+        var user = await client.GetCurrentUserAsync("user-token", "correlation-1", CancellationToken.None);
 
         Assert.NotNull(user);
         Assert.Equal("https://location.example/api/internal/identity/v1/me", handler.Request!.RequestUri!.ToString());
         Assert.Equal("Bearer", handler.Request.Headers.Authorization!.Scheme);
         Assert.Equal("internal-secret", handler.Request.Headers.Authorization.Parameter);
         Assert.True(handler.Request.Headers.TryGetValues("x-afh-user-token", out var userTokenValues));
-        Assert.Equal("Bearer user-token", Assert.Single(userTokenValues));
+        Assert.Equal("user-token", Assert.Single(userTokenValues));
     }
 
     private sealed class CapturingHandler(HttpResponseMessage response) : HttpMessageHandler

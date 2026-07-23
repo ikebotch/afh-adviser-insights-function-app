@@ -63,7 +63,13 @@ public sealed class AdviserInsightsFunction(AdviserInsightsService insights)
             await insights.GetMyClientsMissingAnnualReviewAsync(Auth(request), Correlation(request), request.QueryInt("pageSize", 25), cancellationToken).ConfigureAwait(false),
             cancellationToken);
 
-    private static string? Auth(HttpRequestData request) => request.Header("Authorization");
+    private static string? Auth(HttpRequestData request)
+    {
+        var authHeader = request.Header("Authorization")?.Trim() ?? string.Empty;
+        return authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)
+            ? authHeader["Bearer ".Length..].Trim()
+            : null;
+    }
 
     private static string? Correlation(HttpRequestData request) => request.Header("x-correlation-id");
 }
