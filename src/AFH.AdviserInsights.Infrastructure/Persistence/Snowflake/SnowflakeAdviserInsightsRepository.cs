@@ -76,7 +76,7 @@ public sealed class SnowflakeAdviserInsightsRepository(
                 adviser.Adviser,
                 adviser.AdviserManager,
                 adviser.EmailAddress,
-                AumValue = aumFact == null ? 0m : aumFact.AdjustedValuation ?? aumFact.Valuation ?? 0m
+                AumValue = aumFact.AdjustedValuation ?? aumFact.Valuation ?? 0m
             };
 
         if (!scope.IncludeAll)
@@ -168,9 +168,9 @@ public sealed class SnowflakeAdviserInsightsRepository(
                 row.Customer.EntityName,
                 row.Adviser.AdviserId,
                 row.Adviser.Adviser,
-                ReportName = row.ServicePeriod == null ? row.Policy.ReportName : row.ServicePeriod.ReportName ?? row.Policy.ReportName,
-                PolicyStartDate = row.ServicePeriod == null ? null : row.ServicePeriod.PolicyStartDate,
-                PolicyServiceCloseDate = row.ServicePeriod == null ? null : row.ServicePeriod.PolicyServiceCloseDate
+                ReportName = row.ServicePeriod!.ReportName ?? row.Policy.ReportName,
+                row.ServicePeriod!.PolicyStartDate,
+                row.ServicePeriod!.PolicyServiceCloseDate
             })
             .Select(group => new
             {
@@ -182,7 +182,7 @@ public sealed class SnowflakeAdviserInsightsRepository(
                 group.Key.ReportName,
                 group.Key.PolicyStartDate,
                 group.Key.PolicyServiceCloseDate,
-                AumValue = group.Sum(row => row.AumFact == null ? 0m : row.AumFact.AdjustedValuation ?? row.AumFact.Valuation ?? 0m)
+                AumValue = group.Sum(row => row.AumFact!.AdjustedValuation ?? row.AumFact!.Valuation ?? 0m)
             })
             .OrderByDescending(row => row.AumValue)
             .ThenBy(row => row.ClientName)
@@ -221,8 +221,8 @@ public sealed class SnowflakeAdviserInsightsRepository(
             {
                 AdviserCount = group.Select(row => row.Adviser.AdviserId).Distinct().Count(),
                 ClientCount = group.Select(row => row.CustomerFact.EntitySk).Distinct().Count(),
-                PolicyCount = group.Select(row => row.AumFact == null ? null : row.AumFact.XplanPolicySk).Distinct().Count(),
-                TotalAum = group.Sum(row => row.AumFact == null ? 0m : row.AumFact.AdjustedValuation ?? row.AumFact.Valuation ?? 0m)
+                PolicyCount = group.Select(row => row.AumFact!.XplanPolicySk).Where(policySk => policySk != null).Distinct().Count(),
+                TotalAum = group.Sum(row => row.AumFact!.AdjustedValuation ?? row.AumFact!.Valuation ?? 0m)
             })
             .FirstOrDefaultAsync(cancellationToken)
             .ConfigureAwait(false);
@@ -258,8 +258,8 @@ public sealed class SnowflakeAdviserInsightsRepository(
                 adviser.Adviser,
                 adviser.AdviserManager,
                 adviser.EmailAddress,
-                XplanPolicySk = aumFact == null ? null : aumFact.XplanPolicySk,
-                AumValue = aumFact == null ? 0m : aumFact.AdjustedValuation ?? aumFact.Valuation ?? 0m
+                aumFact.XplanPolicySk,
+                AumValue = aumFact.AdjustedValuation ?? aumFact.Valuation ?? 0m
             };
 
         if (!scope.IncludeAll)
@@ -354,7 +354,7 @@ public sealed class SnowflakeAdviserInsightsRepository(
                 ClientName = group.Key.EntityName,
                 group.Key.AdviserId,
                 AdviserName = group.Key.Adviser,
-                LastPolicyServiceDate = group.Max(row => row.ServicePeriod == null ? null : row.ServicePeriod.PolicyServiceCloseDate),
+                LastPolicyServiceDate = group.Max(row => row.ServicePeriod!.PolicyServiceCloseDate),
                 ActivePolicyCount = group.Select(row => row.Policy.XplanPolicySk).Distinct().Count()
             })
             .Where(row => row.LastPolicyServiceDate == null || row.LastPolicyServiceDate < cutoff)
