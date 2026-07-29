@@ -72,12 +72,23 @@ Configure with:
 AdviserInsights__Identity__BaseUrl=https://<identity-service>.azurewebsites.net
 AdviserInsights__Identity__InternalToken=<shared-internal-token>
 AdviserInsights__Identity__CurrentUserPath=api/internal/identity/v1/me
+AdviserInsights__Audit__Provider=TableStorage
+AdviserInsights__Audit__ConnectionString=<storage-connection-string>
+AdviserInsights__Audit__TableName=AdviserInsightsAudit
 AdviserInsights__Snowflake__ConnectionString=account=<account>;host=<account>.<region>.azure.snowflakecomputing.com;authenticator=snowflake_jwt;user=<user>;private_key=<private-key-pem-or-base64>;warehouse=<warehouse>;role=<role>
 AdviserInsights__Snowflake__Database=DIM_DB_DEV
 AdviserInsights__Snowflake__Schema=AFH
 ```
 
 For key-pair authentication, pass the private key in the Snowflake EF connection string. In Azure, prefer Key Vault references for the connection string or private key value. The service appends `db` and `schema` from configuration when the connection string does not already include them, so Snowflake sessions have a current database/schema before EF queries run.
+
+## Audit
+
+Direct Adviser Insights API calls are written to the configured audit sink. With `AdviserInsights__Audit__Provider=TableStorage`, rows are written to the `AdviserInsightsAudit` table using partition keys like `20260729|AdviserInsights`. These rows include operation name, route, query string, status code, duration, correlation id, actor header when available, and failure reason.
+
+MCP tool calls are still audited by the MCP Gateway in `AiToolAudit`. Direct calls to this service will not appear under the `booking` partition in that table.
+
+Unexpected exceptions are returned through the shared `AFH.Common.Errors.AzureFunctions` error response builder so 500 responses follow the common AFH error shape.
 
 ## Phase 1 Notes
 

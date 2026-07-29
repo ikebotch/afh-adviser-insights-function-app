@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using AFH.AdviserInsights.Application.Composition;
 using AFH.AdviserInsights.Infrastructure.Composition;
+using AFH.Common.Errors.AzureFunctions.DependencyInjection;
 using Azure.Core.Serialization;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Configuration;
@@ -29,6 +30,7 @@ var host = new HostBuilder()
 
         services.AddAdviserInsightsApplication();
         services.AddAdviserInsightsInfrastructure(ctx.Configuration);
+        services.AddAfhCommonErrorsAzureFunctions();
         ConfigureWorkerSerialization(services);
     })
     .Build();

@@ -7,6 +7,9 @@
     "AdviserInsights__Identity__FunctionKey": "",
     "AdviserInsights__Identity__InternalToken": "<shared-internal-token>",
     "AdviserInsights__Identity__CurrentUserPath": "api/internal/identity/v1/me",
+    "AdviserInsights__Audit__Provider": "TableStorage",
+    "AdviserInsights__Audit__ConnectionString": "UseDevelopmentStorage=true",
+    "AdviserInsights__Audit__TableName": "AdviserInsightsAudit",
     "AdviserInsights__Snowflake__ConnectionString": "account=<account>;host=<account>.<region>.azure.snowflakecomputing.com;authenticator=snowflake_jwt;user=<user>;private_key=<private-key-pem-or-base64>;warehouse=<warehouse>;role=<role>",
     "AdviserInsights__Snowflake__Database": "DIM_DB_DEV",
     "AdviserInsights__Snowflake__Schema": "AFH"

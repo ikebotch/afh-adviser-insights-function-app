@@ -1,5 +1,7 @@
+using AFH.AdviserInsights.Application.Abstractions.Audit;
 using AFH.AdviserInsights.Application.Abstractions.Auth;
 using AFH.AdviserInsights.Application.Abstractions.Persistence;
+using AFH.AdviserInsights.Infrastructure.Audit;
 using AFH.AdviserInsights.Infrastructure.Auth;
 using AFH.AdviserInsights.Infrastructure.Options;
 using AFH.AdviserInsights.Infrastructure.Persistence.Snowflake;
@@ -18,6 +20,13 @@ public static class ServiceCollectionExtensions
     {
         services.Configure<AdviserInsightsOptions>(configuration.GetSection(AdviserInsightsOptions.SectionName));
         services.AddSingleton(TimeProvider.System);
+        services.AddSingleton<IAdviserInsightsAuditSink>(provider =>
+        {
+            var options = provider.GetRequiredService<IOptions<AdviserInsightsOptions>>().Value;
+            return options.Audit.Provider.Equals("TableStorage", StringComparison.OrdinalIgnoreCase)
+                ? ActivatorUtilities.CreateInstance<TableStorageAdviserInsightsAuditSink>(provider)
+                : ActivatorUtilities.CreateInstance<LoggingAdviserInsightsAuditSink>(provider);
+        });
         services.AddSingleton<IInternalServiceAuthenticator, InternalBearerServiceAuthenticator>();
         services.AddHttpClient<IIdentityClient, IdentityClient>();
         services.AddDbContextFactory<AdviserInsightsSnowflakeDbContext>((serviceProvider, options) =>

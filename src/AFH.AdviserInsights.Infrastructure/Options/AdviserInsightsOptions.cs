@@ -7,6 +7,8 @@ public sealed class AdviserInsightsOptions
     public DownstreamIdentityOptions Identity { get; set; } = new();
 
     public SnowflakeOptions Snowflake { get; set; } = new();
+
+    public AdviserInsightsAuditOptions Audit { get; set; } = new();
 }
 
 public sealed class DownstreamIdentityOptions
@@ -27,4 +29,13 @@ public sealed class SnowflakeOptions
     public string Database { get; set; } = "DIM_DB_DEV";
 
     public string Schema { get; set; } = "AFH";
+}
+
+public sealed class AdviserInsightsAuditOptions
+{
+    public string Provider { get; set; } = "Logging";
+
+    public string? ConnectionString { get; set; }
+
+    public string TableName { get; set; } = "AdviserInsightsAudit";
 }

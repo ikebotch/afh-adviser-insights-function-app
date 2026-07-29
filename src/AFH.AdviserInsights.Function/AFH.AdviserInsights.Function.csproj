@@ -25,5 +25,6 @@
     <ProjectReference Include="..\AFH.AdviserInsights.Application\AFH.AdviserInsights.Application.csproj" />
     <ProjectReference Include="..\AFH.AdviserInsights.Infrastructure\AFH.AdviserInsights.Infrastructure.csproj" />
     <ProjectReference Include="..\AFH.AdviserInsights.Contract\AFH.AdviserInsights.Contract.csproj" />
+    <ProjectReference Include="..\..\..\..\sdk\afh-common-error\src\AFH.Common.Errors.AzureFunctions\AFH.Common.Errors.AzureFunctions.csproj" />
   </ItemGroup>
 </Project>
