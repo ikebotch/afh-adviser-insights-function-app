@@ -172,14 +172,11 @@ public sealed class SnowflakeAdviserInsightsRepository(
         await using var db = await dbFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
 
         var query =
-            from customer in db.Customers.AsNoTracking()
-            join customerFact in db.CustomerFacts.AsNoTracking() on customer.EntitySk equals customerFact.EntitySk
+            from customerFact in db.CustomerFacts.AsNoTracking()
             join adviser in db.Advisers.AsNoTracking() on customerFact.AdviserSk equals adviser.AdviserSk
-            join householdCustomer in db.HouseholdCustomers.AsNoTracking() on customer.EntitySk equals householdCustomer.EntitySk into householdCustomers
-            from householdCustomer in householdCustomers.DefaultIfEmpty()
-            join aumFact in db.AumFacts.AsNoTracking() on householdCustomer.HouseholdSk equals aumFact.HouseholdSk into aumFacts
+            join aumFact in db.AumFacts.AsNoTracking() on customerFact.HouseholdSk equals aumFact.HouseholdSk into aumFacts
             from aumFact in aumFacts.DefaultIfEmpty()
-            select new AdviserClientAumRow(customer, adviser, aumFact);
+            select new AdviserAumSummaryRow(customerFact, adviser, aumFact);
 
         query = ApplyScopeFilter(query, scope);
 
@@ -188,7 +185,7 @@ public sealed class SnowflakeAdviserInsightsRepository(
             .Select(group => new
             {
                 AdviserCount = group.Select(row => row.Adviser.AdviserId).Distinct().Count(),
-                ClientCount = group.Select(row => row.Customer.ClientEntityId).Distinct().Count(),
+                ClientCount = group.Select(row => row.CustomerFact.EntitySk).Distinct().Count(),
                 PolicyCount = group.Select(row => row.AumFact == null ? null : row.AumFact.XplanPolicySk).Distinct().Count(),
                 TotalAum = group.Sum(row => row.AumFact == null ? 0m : row.AumFact.AdjustedValuation ?? row.AumFact.Valuation ?? 0m)
             })
@@ -333,10 +330,9 @@ public sealed class SnowflakeAdviserInsightsRepository(
         IQueryable<AdviserClientAumRow> query,
         AdviserDataScope scope)
     {
-        if (scope.IncludeAll)
-            return query;
+        if (!scope.IncludeAll)
+            query = ApplyBoundaryFilter(query, scope);
 
-        query = ApplyBoundaryFilter(query, scope);
         return ApplyTargetFilter(query, scope);
     }
 
@@ -344,10 +340,9 @@ public sealed class SnowflakeAdviserInsightsRepository(
         IQueryable<AdviserPolicyAumRow> query,
         AdviserDataScope scope)
     {
-        if (scope.IncludeAll)
-            return query;
+        if (!scope.IncludeAll)
+            query = ApplyBoundaryFilter(query, scope);
 
-        query = ApplyBoundaryFilter(query, scope);
         return ApplyTargetFilter(query, scope);
     }
 
@@ -355,10 +350,19 @@ public sealed class SnowflakeAdviserInsightsRepository(
         IQueryable<AdviserPolicyServiceRow> query,
         AdviserDataScope scope)
     {
-        if (scope.IncludeAll)
-            return query;
+        if (!scope.IncludeAll)
+            query = ApplyBoundaryFilter(query, scope);
 
-        query = ApplyBoundaryFilter(query, scope);
+        return ApplyTargetFilter(query, scope);
+    }
+
+    private static IQueryable<AdviserAumSummaryRow> ApplyScopeFilter(
+        IQueryable<AdviserAumSummaryRow> query,
+        AdviserDataScope scope)
+    {
+        if (!scope.IncludeAll)
+            query = ApplyBoundaryFilter(query, scope);
+
         return ApplyTargetFilter(query, scope);
     }
 
@@ -456,6 +460,24 @@ public sealed class SnowflakeAdviserInsightsRepository(
                 (adviserName != null && row.Adviser.Adviser != null && row.Adviser.Adviser.ToLower() == adviserName));
     }
 
+    private static IQueryable<AdviserAumSummaryRow> ApplyBoundaryFilter(
+        IQueryable<AdviserAumSummaryRow> query,
+        AdviserDataScope scope)
+    {
+        var emails = EmailCandidates(scope.Email, scope.AdviserId);
+        var adviserId = NumericIdentifierOrNull(scope.AdviserId);
+        var adviserName = scope.ManagerName?.ToLower();
+        return scope.IncludeTeam
+            ? query.Where(row =>
+                row.Adviser.AdviserManager == scope.ManagerName ||
+                (adviserId != null && row.Adviser.AdviserId == adviserId) ||
+                (row.Adviser.EmailAddress != null && emails.Contains(row.Adviser.EmailAddress.ToLower())))
+            : query.Where(row =>
+                (adviserId != null && row.Adviser.AdviserId == adviserId) ||
+                (row.Adviser.EmailAddress != null && emails.Contains(row.Adviser.EmailAddress.ToLower())) ||
+                (adviserName != null && row.Adviser.Adviser != null && row.Adviser.Adviser.ToLower() == adviserName));
+    }
+
     private static IQueryable<AdviserClientAumRow> ApplyTargetFilter(
         IQueryable<AdviserClientAumRow> query,
         AdviserDataScope scope)
@@ -510,6 +532,24 @@ public sealed class SnowflakeAdviserInsightsRepository(
         return query;
     }
 
+    private static IQueryable<AdviserAumSummaryRow> ApplyTargetFilter(
+        IQueryable<AdviserAumSummaryRow> query,
+        AdviserDataScope scope)
+    {
+        var targetAdviserId = NumericIdentifierOrNull(scope.TargetAdviserId);
+        var targetEmail = scope.TargetAdviserEmail?.ToLower();
+        var targetName = scope.TargetAdviserName?.ToLower();
+
+        if (targetAdviserId is not null)
+            query = query.Where(row => row.Adviser.AdviserId == targetAdviserId);
+        if (targetEmail is not null)
+            query = query.Where(row => row.Adviser.EmailAddress != null && row.Adviser.EmailAddress.ToLower() == targetEmail);
+        if (targetName is not null)
+            query = query.Where(row => row.Adviser.Adviser != null && row.Adviser.Adviser.ToLower().Contains(targetName));
+
+        return query;
+    }
+
     private static bool HasTargetAdviser(AdviserDataScope scope)
         => !string.IsNullOrWhiteSpace(scope.TargetAdviserId) ||
            !string.IsNullOrWhiteSpace(scope.TargetAdviserName) ||
@@ -530,6 +570,11 @@ public sealed class SnowflakeAdviserInsightsRepository(
 
     private sealed record AdviserClientAumRow(
         DimCustomerEntity Customer,
+        DimAdviserEntity Adviser,
+        FactAumEntity? AumFact);
+
+    private sealed record AdviserAumSummaryRow(
+        FactCustomerEntity CustomerFact,
         DimAdviserEntity Adviser,
         FactAumEntity? AumFact);
 
