@@ -67,18 +67,53 @@ public sealed class SnowflakeAdviserInsightsRepository(
             from householdCustomer in householdCustomers.DefaultIfEmpty()
             join aumFact in db.AumFacts.AsNoTracking() on householdCustomer.HouseholdSk equals aumFact.HouseholdSk into aumFacts
             from aumFact in aumFacts.DefaultIfEmpty()
-            select new AdviserClientAumRow(customer, adviser, aumFact);
+            select new
+            {
+                customer.ClientEntityId,
+                customer.EntityName,
+                customer.Household,
+                adviser.AdviserId,
+                adviser.Adviser,
+                adviser.AdviserManager,
+                adviser.EmailAddress,
+                AumValue = aumFact == null ? 0m : aumFact.AdjustedValuation ?? aumFact.Valuation ?? 0m
+            };
 
-        query = ApplyScopeFilter(query, scope);
+        if (!scope.IncludeAll)
+        {
+            var emails = EmailCandidates(scope.Email, scope.AdviserId);
+            var adviserId = NumericIdentifierOrNull(scope.AdviserId);
+            var adviserName = scope.ManagerName?.ToLower();
+            query = scope.IncludeTeam
+                ? query.Where(row =>
+                    row.AdviserManager == scope.ManagerName ||
+                    (adviserId != null && row.AdviserId == adviserId) ||
+                    (row.EmailAddress != null && emails.Contains(row.EmailAddress.ToLower())))
+                : query.Where(row =>
+                    (adviserId != null && row.AdviserId == adviserId) ||
+                    (row.EmailAddress != null && emails.Contains(row.EmailAddress.ToLower())) ||
+                    (adviserName != null && row.Adviser != null && row.Adviser.ToLower() == adviserName));
+        }
+
+        var targetAdviserId = NumericIdentifierOrNull(scope.TargetAdviserId);
+        var targetEmail = scope.TargetAdviserEmail?.ToLower();
+        var targetName = scope.TargetAdviserName?.ToLower();
+
+        if (targetAdviserId is not null)
+            query = query.Where(row => row.AdviserId == targetAdviserId);
+        if (targetEmail is not null)
+            query = query.Where(row => row.EmailAddress != null && row.EmailAddress.ToLower() == targetEmail);
+        if (targetName is not null)
+            query = query.Where(row => row.Adviser != null && row.Adviser.ToLower().Contains(targetName));
 
         var rows = await query
             .GroupBy(row => new
             {
-                row.Customer.ClientEntityId,
-                row.Customer.EntityName,
-                row.Adviser.AdviserId,
-                row.Adviser.Adviser,
-                row.Customer.Household
+                row.ClientEntityId,
+                row.EntityName,
+                row.AdviserId,
+                row.Adviser,
+                row.Household
             })
             .Select(group => new
             {
@@ -87,7 +122,7 @@ public sealed class SnowflakeAdviserInsightsRepository(
                 group.Key.AdviserId,
                 AdviserName = group.Key.Adviser,
                 group.Key.Household,
-                AumValue = group.Sum(row => row.AumFact == null ? 0m : row.AumFact.AdjustedValuation ?? row.AumFact.Valuation ?? 0m)
+                AumValue = group.Sum(row => row.AumValue)
             })
             .OrderByDescending(row => row.AumValue)
             .ThenBy(row => row.ClientName)
@@ -215,17 +250,52 @@ public sealed class SnowflakeAdviserInsightsRepository(
             from householdCustomer in householdCustomers.DefaultIfEmpty()
             join aumFact in db.AumFacts.AsNoTracking() on householdCustomer.HouseholdSk equals aumFact.HouseholdSk into aumFacts
             from aumFact in aumFacts.DefaultIfEmpty()
-            select new AdviserClientAumRow(customer, adviser, aumFact);
+            select new
+            {
+                customer.ClientEntityId,
+                customer.EntityName,
+                adviser.AdviserId,
+                adviser.Adviser,
+                adviser.AdviserManager,
+                adviser.EmailAddress,
+                XplanPolicySk = aumFact == null ? null : aumFact.XplanPolicySk,
+                AumValue = aumFact == null ? 0m : aumFact.AdjustedValuation ?? aumFact.Valuation ?? 0m
+            };
 
-        query = ApplyScopeFilter(query, scope);
+        if (!scope.IncludeAll)
+        {
+            var emails = EmailCandidates(scope.Email, scope.AdviserId);
+            var adviserId = NumericIdentifierOrNull(scope.AdviserId);
+            var adviserName = scope.ManagerName?.ToLower();
+            query = scope.IncludeTeam
+                ? query.Where(row =>
+                    row.AdviserManager == scope.ManagerName ||
+                    (adviserId != null && row.AdviserId == adviserId) ||
+                    (row.EmailAddress != null && emails.Contains(row.EmailAddress.ToLower())))
+                : query.Where(row =>
+                    (adviserId != null && row.AdviserId == adviserId) ||
+                    (row.EmailAddress != null && emails.Contains(row.EmailAddress.ToLower())) ||
+                    (adviserName != null && row.Adviser != null && row.Adviser.ToLower() == adviserName));
+        }
+
+        var targetAdviserId = NumericIdentifierOrNull(scope.TargetAdviserId);
+        var targetEmail = scope.TargetAdviserEmail?.ToLower();
+        var targetName = scope.TargetAdviserName?.ToLower();
+
+        if (targetAdviserId is not null)
+            query = query.Where(row => row.AdviserId == targetAdviserId);
+        if (targetEmail is not null)
+            query = query.Where(row => row.EmailAddress != null && row.EmailAddress.ToLower() == targetEmail);
+        if (targetName is not null)
+            query = query.Where(row => row.Adviser != null && row.Adviser.ToLower().Contains(targetName));
 
         var rows = await query
             .GroupBy(row => new
             {
-                row.Customer.ClientEntityId,
-                row.Customer.EntityName,
-                row.Adviser.AdviserId,
-                row.Adviser.Adviser
+                row.ClientEntityId,
+                row.EntityName,
+                row.AdviserId,
+                row.Adviser
             })
             .Select(group => new
             {
@@ -233,8 +303,8 @@ public sealed class SnowflakeAdviserInsightsRepository(
                 ClientName = group.Key.EntityName,
                 group.Key.AdviserId,
                 AdviserName = group.Key.Adviser,
-                TotalPolicyValue = group.Sum(row => row.AumFact == null ? 0m : row.AumFact.AdjustedValuation ?? row.AumFact.Valuation ?? 0m),
-                PolicyCount = group.Select(row => row.AumFact == null ? null : row.AumFact.XplanPolicySk).Distinct().Count()
+                TotalPolicyValue = group.Sum(row => row.AumValue),
+                PolicyCount = group.Select(row => row.XplanPolicySk).Distinct().Count()
             })
             .OrderByDescending(row => row.TotalPolicyValue)
             .Take(pageSize)
