@@ -314,13 +314,13 @@ public sealed class SnowflakeAdviserInsightsRepository(
         {
             if (!scope.IncludeAll)
             {
-                var managerName = scope.ManagerName;
-                var signedInEmail = scope.Email?.ToLower();
+                var managerName = scope.ManagerName?.ToLower();
                 var signedInAdviserId = NumericIdentifierOrNull(scope.AdviserId);
+                var signedInEmails = EmailCandidates(scope.Email, scope.AdviserId);
                 query = query.Where(adviser =>
-                    adviser.AdviserManager == managerName ||
+                    (managerName != null && adviser.AdviserManager != null && adviser.AdviserManager.ToLower() == managerName) ||
                     (signedInAdviserId != null && adviser.AdviserId == signedInAdviserId) ||
-                    (adviser.EmailAddress != null && adviser.EmailAddress.ToLower() == signedInEmail));
+                    (adviser.EmailAddress != null && signedInEmails.Contains(adviser.EmailAddress.ToLower())));
             }
 
             return ApplyTargetFilter(query, scope);
@@ -366,12 +366,13 @@ public sealed class SnowflakeAdviserInsightsRepository(
         IQueryable<DimAdviserEntity> query,
         AdviserDataScope scope)
     {
-        var email = scope.Email?.ToLower();
+        var emails = EmailCandidates(scope.Email, scope.AdviserId);
         var adviserId = NumericIdentifierOrNull(scope.AdviserId);
+        var adviserName = scope.ManagerName?.ToLower();
         return query.Where(adviser =>
             (adviserId != null && adviser.AdviserId == adviserId) ||
-            (adviser.EmailAddress != null && adviser.EmailAddress.ToLower() == email) ||
-            adviser.Adviser == scope.ManagerName);
+            (adviser.EmailAddress != null && emails.Contains(adviser.EmailAddress.ToLower())) ||
+            (adviserName != null && adviser.Adviser != null && adviser.Adviser.ToLower() == adviserName));
     }
 
     private static IQueryable<DimAdviserEntity> ApplyTargetFilter(
@@ -399,17 +400,18 @@ public sealed class SnowflakeAdviserInsightsRepository(
         if (scope.IncludeAll)
             return query;
 
-        var email = scope.Email?.ToLower();
+        var emails = EmailCandidates(scope.Email, scope.AdviserId);
         var adviserId = NumericIdentifierOrNull(scope.AdviserId);
+        var adviserName = scope.ManagerName?.ToLower();
         return scope.IncludeTeam
             ? query.Where(row =>
                 row.Adviser.AdviserManager == scope.ManagerName ||
                 (adviserId != null && row.Adviser.AdviserId == adviserId) ||
-                (row.Adviser.EmailAddress != null && row.Adviser.EmailAddress.ToLower() == email))
+                (row.Adviser.EmailAddress != null && emails.Contains(row.Adviser.EmailAddress.ToLower())))
             : query.Where(row =>
                 (adviserId != null && row.Adviser.AdviserId == adviserId) ||
-                (row.Adviser.EmailAddress != null && row.Adviser.EmailAddress.ToLower() == email) ||
-                row.Adviser.Adviser == scope.ManagerName);
+                (row.Adviser.EmailAddress != null && emails.Contains(row.Adviser.EmailAddress.ToLower())) ||
+                (adviserName != null && row.Adviser.Adviser != null && row.Adviser.Adviser.ToLower() == adviserName));
     }
 
     private static IQueryable<AdviserPolicyAumRow> ApplyBoundaryFilter(
@@ -419,17 +421,18 @@ public sealed class SnowflakeAdviserInsightsRepository(
         if (scope.IncludeAll)
             return query;
 
-        var email = scope.Email?.ToLower();
+        var emails = EmailCandidates(scope.Email, scope.AdviserId);
         var adviserId = NumericIdentifierOrNull(scope.AdviserId);
+        var adviserName = scope.ManagerName?.ToLower();
         return scope.IncludeTeam
             ? query.Where(row =>
                 row.Adviser.AdviserManager == scope.ManagerName ||
                 (adviserId != null && row.Adviser.AdviserId == adviserId) ||
-                (row.Adviser.EmailAddress != null && row.Adviser.EmailAddress.ToLower() == email))
+                (row.Adviser.EmailAddress != null && emails.Contains(row.Adviser.EmailAddress.ToLower())))
             : query.Where(row =>
                 (adviserId != null && row.Adviser.AdviserId == adviserId) ||
-                (row.Adviser.EmailAddress != null && row.Adviser.EmailAddress.ToLower() == email) ||
-                row.Adviser.Adviser == scope.ManagerName);
+                (row.Adviser.EmailAddress != null && emails.Contains(row.Adviser.EmailAddress.ToLower())) ||
+                (adviserName != null && row.Adviser.Adviser != null && row.Adviser.Adviser.ToLower() == adviserName));
     }
 
     private static IQueryable<AdviserPolicyServiceRow> ApplyBoundaryFilter(
@@ -439,17 +442,18 @@ public sealed class SnowflakeAdviserInsightsRepository(
         if (scope.IncludeAll)
             return query;
 
-        var email = scope.Email?.ToLower();
+        var emails = EmailCandidates(scope.Email, scope.AdviserId);
         var adviserId = NumericIdentifierOrNull(scope.AdviserId);
+        var adviserName = scope.ManagerName?.ToLower();
         return scope.IncludeTeam
             ? query.Where(row =>
                 row.Adviser.AdviserManager == scope.ManagerName ||
                 (adviserId != null && row.Adviser.AdviserId == adviserId) ||
-                (row.Adviser.EmailAddress != null && row.Adviser.EmailAddress.ToLower() == email))
+                (row.Adviser.EmailAddress != null && emails.Contains(row.Adviser.EmailAddress.ToLower())))
             : query.Where(row =>
                 (adviserId != null && row.Adviser.AdviserId == adviserId) ||
-                (row.Adviser.EmailAddress != null && row.Adviser.EmailAddress.ToLower() == email) ||
-                row.Adviser.Adviser == scope.ManagerName);
+                (row.Adviser.EmailAddress != null && emails.Contains(row.Adviser.EmailAddress.ToLower())) ||
+                (adviserName != null && row.Adviser.Adviser != null && row.Adviser.Adviser.ToLower() == adviserName));
     }
 
     private static IQueryable<AdviserClientAumRow> ApplyTargetFilter(
@@ -510,6 +514,13 @@ public sealed class SnowflakeAdviserInsightsRepository(
         => !string.IsNullOrWhiteSpace(scope.TargetAdviserId) ||
            !string.IsNullOrWhiteSpace(scope.TargetAdviserName) ||
            !string.IsNullOrWhiteSpace(scope.TargetAdviserEmail);
+
+    private static string[] EmailCandidates(params string?[] values)
+        => values
+            .Where(value => !string.IsNullOrWhiteSpace(value) && value.Contains('@', StringComparison.Ordinal))
+            .Select(value => value!.Trim().ToLowerInvariant())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
 
     private static string? NumericIdentifierOrNull(string? value)
         => long.TryParse(value, out _) ? value : null;
