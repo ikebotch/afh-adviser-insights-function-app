@@ -8,6 +8,8 @@ public sealed class AdviserInsightsOptions
 
     public SnowflakeOptions Snowflake { get; set; } = new();
 
+    public CortexAgentOptions CortexAgent { get; set; } = new();
+
     public AdviserInsightsAuditOptions Audit { get; set; } = new();
 }
 
@@ -29,6 +31,29 @@ public sealed class SnowflakeOptions
     public string Database { get; set; } = "DIM_DB_DEV";
 
     public string Schema { get; set; } = "AFH";
+}
+
+public sealed class CortexAgentOptions
+{
+    public string? EndpointUrl { get; set; }
+
+    public string AuthenticationMode { get; set; } = "KeyPairJwt";
+
+    public string? BearerToken { get; set; }
+
+    public string? AccountIdentifier { get; set; }
+
+    public string? User { get; set; }
+
+    public string? Role { get; set; }
+
+    public string? Warehouse { get; set; }
+
+    public string? PrivateKey { get; set; }
+
+    public string? PrivateKeyPassphrase { get; set; }
+
+    public int JwtLifetimeMinutes { get; set; } = 55;
 }
 
 public sealed class AdviserInsightsAuditOptions

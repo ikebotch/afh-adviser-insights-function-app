@@ -21,6 +21,7 @@ Copilot/MCP or API caller
 | `GET` | `/api/health` | Health check. |
 | `GET` | `/api/openapi/v1.json` | OpenAPI document. |
 | `GET` | `/api/scalar` | Scalar API reference. |
+| `POST` | `/api/v1/insights/ask` | Ask the configured Snowflake Cortex agent within the signed-in user's AUM scope. |
 | `GET` | `/api/v1/me/adviser` | Signed-in adviser profile. |
 | `GET` | `/api/v1/me/team/advisers` | Managed advisers for manager users. |
 | `GET` | `/api/v1/me/clients` | Clients in the signed-in user's adviser scope. |
@@ -78,9 +79,20 @@ AdviserInsights__Audit__TableName=AdviserInsightsAudit
 AdviserInsights__Snowflake__ConnectionString=account=<account>;host=<account>.<region>.azure.snowflakecomputing.com;authenticator=snowflake_jwt;user=<user>;private_key=<private-key-pem-or-base64>;warehouse=<warehouse>;role=<role>
 AdviserInsights__Snowflake__Database=DIM_DB_DEV
 AdviserInsights__Snowflake__Schema=AFH
+AdviserInsights__CortexAgent__EndpointUrl=https://JR56660-RU01452.snowflakecomputing.com/api/v2/databases/CORTEX_DB/schemas/RAW_DATA/agents/AGENT_SURVEY_MONKEY_NBE:run
+AdviserInsights__CortexAgent__AuthenticationMode=KeyPairJwt
+AdviserInsights__CortexAgent__AccountIdentifier=JR56660-RU01452
+AdviserInsights__CortexAgent__User=SOLDESIGN
+AdviserInsights__CortexAgent__Role=DEV_SOLDESIGN_ALL
+AdviserInsights__CortexAgent__Warehouse=DEV_WH
+AdviserInsights__CortexAgent__PrivateKey=<snowflake-private-key-pem>
+AdviserInsights__CortexAgent__PrivateKeyPassphrase=<optional-private-key-passphrase>
+AdviserInsights__CortexAgent__JwtLifetimeMinutes=55
 ```
 
 For key-pair authentication, pass the private key in the Snowflake EF connection string. In Azure, prefer Key Vault references for the connection string or private key value. The service appends `db` and `schema` from configuration when the connection string does not already include them, so Snowflake sessions have a current database/schema before EF queries run.
+
+The Cortex agent uses its own REST configuration but can use the same Snowflake user and private key. Adviser Insights resolves the caller through Identity before invoking Cortex and adds the caller's self, team, or all-data boundary to the request. Snowflake row-access policies remain the authoritative data boundary.
 
 ## Audit
 

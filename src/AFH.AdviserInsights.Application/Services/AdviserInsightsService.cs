@@ -1,5 +1,6 @@
 using System.Net;
 using AFH.AdviserInsights.Application.Abstractions;
+using AFH.AdviserInsights.Application.Abstractions.AI;
 using AFH.AdviserInsights.Application.Abstractions.Persistence;
 using AFH.AdviserInsights.Contract;
 using AFH.AdviserInsights.Domain.Access;
@@ -8,8 +9,11 @@ namespace AFH.AdviserInsights.Application.Services;
 
 public sealed class AdviserInsightsService(
     AdviserInsightsAccessService accessService,
-    IAdviserInsightsRepository repository)
+    IAdviserInsightsRepository repository,
+    ICortexAgentClient cortexAgentClient)
 {
+    private const int MaxFailureDetailLength = 4096;
+
     public async Task<ServiceResult<AdviserProfileResponse>> GetMyAdviserAsync(
         string? bearerToken,
         string? correlationId,
@@ -122,6 +126,48 @@ public sealed class AdviserInsightsService(
 
         return ServiceResult<IReadOnlyList<MissingAnnualReviewClientResponse>>.Ok(
             await repository.GetClientsMissingAnnualReviewAsync(scope.Value!, NormalizePageSize(pageSize), cancellationToken).ConfigureAwait(false));
+    }
+
+    public async Task<ServiceResult<CortexAnswerResponse>> AskCortexAgentAsync(
+        string? bearerToken,
+        string? correlationId,
+        string? question,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(question))
+        {
+            return ServiceResult<CortexAnswerResponse>.Fail(
+                HttpStatusCode.BadRequest,
+                "ValidationError",
+                "Question is required.");
+        }
+
+        var scope = await ResolveScopeAsync(
+                bearerToken,
+                correlationId,
+                allowTeamScope: true,
+                target: null,
+                cancellationToken)
+            .ConfigureAwait(false);
+        if (!scope.IsSuccess)
+            return Fail<CortexAnswerResponse>(scope);
+
+        var result = await cortexAgentClient
+            .AskAsync(question.Trim(), scope.Value!, correlationId, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (!result.IsSuccess)
+        {
+            var detail = result.Content.GetRawText();
+            return ServiceResult<CortexAnswerResponse>.Fail(
+                HttpStatusCode.BadGateway,
+                "CortexAgentError",
+                $"Snowflake Cortex agent returned HTTP {result.StatusCode}.",
+                detail.Length <= MaxFailureDetailLength ? detail : detail[..MaxFailureDetailLength]);
+        }
+
+        return ServiceResult<CortexAnswerResponse>.Ok(
+            new CortexAnswerResponse(result.Content, scope.Value!.AccessMode));
     }
 
     private Task<ServiceResult<AdviserDataScope>> ResolveScopeAsync(

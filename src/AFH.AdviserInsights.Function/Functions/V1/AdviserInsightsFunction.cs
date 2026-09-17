@@ -1,8 +1,10 @@
 using System.Diagnostics;
 using System.Net;
+using System.Text.Json;
 using AFH.AdviserInsights.Application.Abstractions;
 using AFH.AdviserInsights.Application.Abstractions.Audit;
 using AFH.AdviserInsights.Application.Services;
+using AFH.AdviserInsights.Contract;
 using AFH.AdviserInsights.Function.Http;
 using AFH.Common.Errors.AzureFunctions.Builders;
 using Microsoft.Azure.Functions.Worker;
@@ -85,6 +87,25 @@ public sealed class AdviserInsightsFunction(
             () => insights.GetMyClientsMissingAnnualReviewAsync(Auth(request), Correlation(request), Target(request), request.QueryInt("pageSize", 25), cancellationToken),
             cancellationToken);
 
+    [Function("AdviserInsights_AskCortexAgent")]
+    public async Task<HttpResponseData> AskCortexAgent(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "v1/insights/ask")] HttpRequestData request,
+        CancellationToken cancellationToken)
+        => await ExecuteAsync(
+            request,
+            "AskCortexAgent",
+            async () =>
+            {
+                var body = await request.ReadFromJsonAsync<CortexQuestionRequest>(cancellationToken).ConfigureAwait(false);
+                return await insights.AskCortexAgentAsync(
+                        Auth(request),
+                        Correlation(request),
+                        body?.Question,
+                        cancellationToken)
+                    .ConfigureAwait(false);
+            },
+            cancellationToken);
+
     private async Task<HttpResponseData> ExecuteAsync<T>(
         HttpRequestData request,
         string operationName,
@@ -96,7 +117,13 @@ public sealed class AdviserInsightsFunction(
         {
             var result = await action().ConfigureAwait(false);
             stopwatch.Stop();
-            await WriteAuditAsync(request, operationName, result.StatusCode, result.IsSuccess ? null : result.ErrorMessage, stopwatch.ElapsedMilliseconds, cancellationToken)
+            await WriteAuditAsync(
+                    request,
+                    operationName,
+                    result.StatusCode,
+                    result.IsSuccess ? null : FailureReason(result.ErrorMessage, result.ErrorDetail),
+                    stopwatch.ElapsedMilliseconds,
+                    cancellationToken)
                 .ConfigureAwait(false);
 
             return await request.ToJsonAsync(result, cancellationToken).ConfigureAwait(false);
@@ -160,6 +187,11 @@ public sealed class AdviserInsightsFunction(
     }
 
     private static string? Correlation(HttpRequestData request) => request.Header("x-correlation-id");
+
+    private static string? FailureReason(string? message, string? detail)
+        => string.IsNullOrWhiteSpace(detail)
+            ? message
+            : $"{message} Detail: {detail}";
 
     private static string? Actor(HttpRequestData request)
         => request.Header("x-afh-ai-actor-id") ??

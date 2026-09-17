@@ -12,6 +12,16 @@
     "AdviserInsights__Audit__TableName": "AdviserInsightsAudit",
     "AdviserInsights__Snowflake__ConnectionString": "account=<account>;host=<account>.<region>.azure.snowflakecomputing.com;authenticator=snowflake_jwt;user=<user>;private_key=<private-key-pem-or-base64>;warehouse=<warehouse>;role=<role>",
     "AdviserInsights__Snowflake__Database": "DIM_DB_DEV",
-    "AdviserInsights__Snowflake__Schema": "AFH"
+    "AdviserInsights__Snowflake__Schema": "AFH",
+    "AdviserInsights__CortexAgent__EndpointUrl": "https://JR56660-RU01452.snowflakecomputing.com/api/v2/databases/CORTEX_DB/schemas/RAW_DATA/agents/AGENT_SURVEY_MONKEY_NBE:run",
+    "AdviserInsights__CortexAgent__AuthenticationMode": "KeyPairJwt",
+    "AdviserInsights__CortexAgent__BearerToken": "",
+    "AdviserInsights__CortexAgent__AccountIdentifier": "JR56660-RU01452",
+    "AdviserInsights__CortexAgent__User": "SOLDESIGN",
+    "AdviserInsights__CortexAgent__Role": "DEV_SOLDESIGN_ALL",
+    "AdviserInsights__CortexAgent__Warehouse": "DEV_WH",
+    "AdviserInsights__CortexAgent__PrivateKey": "<snowflake-private-key-pem>",
+    "AdviserInsights__CortexAgent__PrivateKeyPassphrase": "",
+    "AdviserInsights__CortexAgent__JwtLifetimeMinutes": "55"
   }
 }

@@ -1,7 +1,9 @@
 using AFH.AdviserInsights.Application.Abstractions.Audit;
+using AFH.AdviserInsights.Application.Abstractions.AI;
 using AFH.AdviserInsights.Application.Abstractions.Auth;
 using AFH.AdviserInsights.Application.Abstractions.Persistence;
 using AFH.AdviserInsights.Infrastructure.Audit;
+using AFH.AdviserInsights.Infrastructure.AI;
 using AFH.AdviserInsights.Infrastructure.Auth;
 using AFH.AdviserInsights.Infrastructure.Options;
 using AFH.AdviserInsights.Infrastructure.Persistence.Snowflake;
@@ -29,6 +31,8 @@ public static class ServiceCollectionExtensions
         });
         services.AddSingleton<IInternalServiceAuthenticator, InternalBearerServiceAuthenticator>();
         services.AddHttpClient<IIdentityClient, IdentityClient>();
+        services.AddSingleton<ICortexAgentAuthenticator, CortexAgentAuthenticator>();
+        services.AddHttpClient<ICortexAgentClient, CortexAgentClient>();
         services.AddDbContextFactory<AdviserInsightsSnowflakeDbContext>((serviceProvider, options) =>
         {
             var snowflakeOptions = serviceProvider

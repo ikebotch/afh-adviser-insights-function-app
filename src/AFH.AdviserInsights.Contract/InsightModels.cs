@@ -1,5 +1,7 @@
 namespace AFH.AdviserInsights.Contract;
 
+using System.Text.Json;
+
 public sealed record ApiEnvelope<T>(bool Success, T? Data, ApiProblem? Error = null)
 {
     public static ApiEnvelope<T> Ok(T data) => new(true, data);
@@ -68,3 +70,7 @@ public sealed record MissingAnnualReviewClientResponse(
     string? AdviserName,
     DateOnly? LastPolicyServiceDate,
     int ActivePolicyCount);
+
+public sealed record CortexQuestionRequest(string Question);
+
+public sealed record CortexAnswerResponse(JsonElement Response, string AccessMode);

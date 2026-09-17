@@ -55,7 +55,8 @@ public sealed class DocsFunction
             ["/api/v1/me/policies"] = Get("getMyPolicies", "Policies", "Get policies in the signed-in user's adviser scope.", hasPageSize: true, hasAdviserFilter: true),
             ["/api/v1/me/aum-summary"] = Get("getMyAumSummary", "AUM", "Get AUM summary in the signed-in user's adviser scope.", hasAdviserFilter: true),
             ["/api/v1/me/clients/highest-policy-value"] = Get("getMyHighValueClients", "Clients", "Find clients with highest policy/AUM value.", hasPageSize: true, hasAdviserFilter: true),
-            ["/api/v1/me/clients/missing-annual-review"] = Get("getMyClientsMissingAnnualReview", "Clients", "Find clients without an annual policy review in the last 12 months.", hasPageSize: true, hasAdviserFilter: true)
+            ["/api/v1/me/clients/missing-annual-review"] = Get("getMyClientsMissingAnnualReview", "Clients", "Find clients without an annual policy review in the last 12 months.", hasPageSize: true, hasAdviserFilter: true),
+            ["/api/v1/insights/ask"] = PostQuestion()
         };
 
         return new
@@ -134,5 +135,41 @@ public sealed class DocsFunction
             required = false,
             schema = new { type = "string" },
             description
+        };
+
+    private static object PostQuestion()
+        => new Dictionary<string, object?>
+        {
+            ["post"] = new
+            {
+                tags = new[] { "Cortex" },
+                operationId = "askCortexAgent",
+                summary = "Ask the configured Snowflake Cortex agent a question within the signed-in user's AUM scope.",
+                security = new object[] { new Dictionary<string, string[]> { ["bearerAuth"] = [] } },
+                requestBody = new
+                {
+                    required = true,
+                    content = new Dictionary<string, object>
+                    {
+                        ["application/json"] = new
+                        {
+                            schema = new
+                            {
+                                type = "object",
+                                required = new[] { "question" },
+                                properties = new { question = new { type = "string" } }
+                            }
+                        }
+                    }
+                },
+                responses = new Dictionary<string, object>
+                {
+                    ["200"] = new { description = "Successful Cortex response." },
+                    ["400"] = new { description = "Question is missing." },
+                    ["401"] = new { description = "Unauthorized." },
+                    ["403"] = new { description = "Forbidden." },
+                    ["502"] = new { description = "Cortex agent request failed." }
+                }
+            }
         };
 }
