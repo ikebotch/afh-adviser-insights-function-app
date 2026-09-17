@@ -54,6 +54,19 @@ public sealed class CortexAgentClient(
 
         using var response = await httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
         var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+        if (string.IsNullOrWhiteSpace(body))
+        {
+            var contentType = response.Content.Headers.ContentType?.ToString() ?? "not supplied";
+            return new CortexAgentResult(
+                false,
+                (int)response.StatusCode,
+                JsonSerializer.SerializeToElement(new
+                {
+                    error = "Snowflake Cortex returned an empty response body.",
+                    contentType
+                }));
+        }
+
         var content = ParseResponse(body);
         return new CortexAgentResult(response.IsSuccessStatusCode, (int)response.StatusCode, content);
     }
@@ -71,9 +84,6 @@ public sealed class CortexAgentClient(
 
     private static JsonElement ParseResponse(string body)
     {
-        if (string.IsNullOrWhiteSpace(body))
-            return JsonSerializer.SerializeToElement(new { });
-
         try
         {
             using var document = JsonDocument.Parse(body);

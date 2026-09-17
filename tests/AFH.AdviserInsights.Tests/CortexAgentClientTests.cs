@@ -78,6 +78,33 @@ public sealed class CortexAgentClientTests
         Assert.Equal("DEV_WH", Assert.Single(first.Headers.GetValues("X-Snowflake-Warehouse")));
     }
 
+    [Fact]
+    public async Task AskAsync_WhenSnowflakeReturnsEmptySuccess_TreatsResponseAsFailure()
+    {
+        var handler = new CapturingHandler(new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(string.Empty, Encoding.UTF8, "application/json")
+        });
+        var options = Options.Create(new AdviserInsightsOptions
+        {
+            CortexAgent = new CortexAgentOptions
+            {
+                EndpointUrl = "https://snowflake.test/api/v2/databases/CORTEX_DB/schemas/RAW_DATA/agents/AFH_AGENT:run"
+            }
+        });
+        var client = new CortexAgentClient(new HttpClient(handler), options, new StubAuthenticator());
+        var scope = new AdviserDataScope("Self", "adviser@afh.com", "adviser-1", "Adviser One", false, false);
+
+        var result = await client.AskAsync("Which advisers are in the survey?", scope, "corr-1", CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(200, result.StatusCode);
+        Assert.Equal(
+            "Snowflake Cortex returned an empty response body.",
+            result.Content.GetProperty("error").GetString());
+        Assert.Equal("application/json; charset=utf-8", result.Content.GetProperty("contentType").GetString());
+    }
+
     private sealed class StubAuthenticator : ICortexAgentAuthenticator
     {
         public void Apply(HttpRequestMessage request)
